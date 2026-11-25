@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct ShipWardenApp: App {
+    /// Gets the device token and the taps on notifications from iOS.
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = AppModel()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -50,10 +52,25 @@ struct RootView: View {
                 }
             }
         }
-        .onAppear { model.start() }
+        .onAppear {
+            model.start()
+            openTapped()
+        }
+        .onChange(of: PushCenter.shared.tapped) { _, _ in openTapped() }
         #if DEBUG
         .task { await runDebugAutomation() }
         #endif
+    }
+
+    /// Opens the target of a tap on a notification: the agent, or the Agents tab with the runs that are waiting for approval.
+    private func openTapped() {
+        guard let target = PushCenter.shared.tapped, model.pairing != nil else { return }
+        PushCenter.shared.tapped = nil
+        tab = "agents"
+        agentsPath = NavigationPath()
+        if case .agent(let id) = target {
+            agentsPath.append(id)
+        }
     }
 
     #if DEBUG

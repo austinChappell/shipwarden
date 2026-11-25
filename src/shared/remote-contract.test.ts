@@ -9,6 +9,8 @@ import {
     type RemoteInput,
     type RemotePendingRuns,
     type RemotePairResponse,
+    type RemotePushConfig,
+    type RemotePushRegistration,
     type RemoteSnapshot,
     type RemoteStartOptions,
     type RemoteStartRequest,
@@ -209,6 +211,15 @@ const startResult: DeepRequired<RemoteStartResult> = {
 
 const error: RemoteErrorBody = { error: 'This address does not exist.' };
 
+const pushConfig: DeepRequired<RemotePushConfig> = { enabled: true, relayUrl: 'https://relay.example.com' };
+
+/** The phone encodes this registration. The Swift check compares its own encoding with this file. */
+const pushRegistration: RemotePushRegistration = {
+    relayUrl: 'https://relay.example.com',
+    ticket: 'v1.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    key: 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'
+};
+
 /** The phone encodes this input. The Swift check compares its own encoding with this file. */
 const input: Required<RemoteInput> = { text: 'yes', key: 'enter', submit: true };
 
@@ -223,6 +234,8 @@ const fixtures: Record<string, unknown> = {
     'start-request-task.json': startTask,
     'start-result.json': startResult,
     'error.json': error,
+    'push-config.json': pushConfig,
+    'push-registration.json': pushRegistration,
     'input.json': input,
     'agent-states.json': Object.keys(AGENT_STATES),
     'remote-keys.json': REMOTE_KEYS

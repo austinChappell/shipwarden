@@ -77,6 +77,7 @@ roundTrip(ScreenSnapshot.self, folder, "screen.json")
 roundTrip(RemotePendingRuns.self, folder, "pending-runs.json")
 roundTrip(RemoteStartOptions.self, folder, "start-options.json")
 roundTrip(RemoteStartResult.self, folder, "start-result.json")
+roundTrip(RemotePushConfig.self, folder, "push-config.json")
 decodeWithKeys(PairResponse.self, folder, "pair-response.json")
 decodeWithKeys(APIErrorBody.self, folder, "error.json")
 
@@ -116,6 +117,11 @@ encodes(
 encodes(
     RemoteStartRequest(repoPath: "/Users/ana/api", task: RemoteStartTask(connectionId: "clickup-1", id: "86b2x"), prompt: nil, branch: nil, agentId: nil, model: nil),
     like: "start-request-task.json"
+)
+
+encodes(
+    RemotePushRegistration(relayUrl: "https://relay.example.com", ticket: "v1.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", key: "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"),
+    like: "push-registration.json"
 )
 
 if failures.isEmpty {

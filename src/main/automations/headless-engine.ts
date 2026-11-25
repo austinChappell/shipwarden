@@ -77,6 +77,8 @@ export interface HeadlessEngineOptions {
     /** The checks of a commit, and the saved log of an Actions job. Without them, the {{checks}} variable needs the app. */
     checks?: { list(worktreePath: string, sha: string): Promise<CheckRun[]>; saveLog(worktreePath: string, jobId: number): Promise<string> };
     notify(title: string, body: string): void;
+    /** A new run waits for the approval of the user. The helper sends a push notification. */
+    onPending?(run: AutomationRun): void;
     now?: () => number;
     log?: (message: string) => void;
 }
@@ -209,6 +211,7 @@ export class HeadlessEngine {
         if (!claimed) return;
         if (claimed.status === 'pending') {
             this.options.notify(`${automation.name} is waiting for your approval`, event.label);
+            this.options.onPending?.(claimed);
         } else if (claimed.status === 'running') {
             await this.execute(claimed);
         }

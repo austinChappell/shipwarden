@@ -216,6 +216,18 @@ in the helper, or on the phone.
 
 **Goal:** Tell the user on the phone when an agent needs input, also when the phone app is closed.
 
+**Status:** Done in branch `2.3-push-notifications` (option A). The relay is in `relay/`: a Node 24 server with no
+packages and no database, behind HTTPS, with the APNs key (.p8, token auth) in its environment. The phone registers its
+device token with the relay and gets a ticket (the token, encrypted with the relay secret) and a push key (an HMAC of
+the ticket). It gives both to its Mac (`POST /v1/push/register`). The Mac signs each push with the push key, and the
+relay makes the text from a fixed kind and the worktree name. So a Mac can push only to its own phones, and it never
+sees a device token. The process that runs the phone server sends "Agent needs input" after an agent waits for 10
+seconds. The process that runs the automations sends "Automation is waiting for approval". Settings › Mobile has the
+switch (off by default), the relay address (a placeholder until a deploy), and "Send test". The iPhone app asks for
+permission when the Mac sends notifications, and a tap opens the agent. The relay is not deployed, and nothing is
+tested live: not the relay with APNs, the app, the helper, or the phone. The privacy policy (marketing repository)
+must name the relay before a release.
+
 **Design:**
 
 - Apple push needs a server with the APNs key. ShipWarden has no server today.

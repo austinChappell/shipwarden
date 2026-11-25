@@ -1,9 +1,12 @@
 import { createServer, type Server } from 'https';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { networkInterfaces } from 'os';
+import type { AgentState } from '@shared/agents';
 import {
+    activeRelayUrl,
     inputWrites,
     pairingLink,
+    parsePushRegistration,
     REMOTE_PROTOCOL,
     type PairingOffer,
     type RemoteAgent,
@@ -14,6 +17,7 @@ import {
     type RemoteInput,
     type RemotePendingRuns,
     type RemotePairResponse,
+    type RemotePushConfig,
     type RemoteSettings,
     type RemoteSnapshot,
     type RemoteStartOptions,
@@ -21,6 +25,8 @@ import {
     type RemoteStatus
 } from '@shared/remote';
 import { runsAgent, type TerminalReplay, type TerminalSession } from '@shared/terminal';
+import { NeedsInputPush } from '../push/push-notifier';
+import type { PushMessage } from '../push/relay-client';
 import type { RemoteDevices } from './remote-devices';
 import { agentOf, checkOf, checksByWorktree } from './remote-snapshot';
 import { ScreenMirror } from './screen-mirror';
@@ -63,6 +69,8 @@ export interface RemoteServerOptions {
     hosts?(): string[];
     /** The interface to listen on. The default is all interfaces. */
     listenHost?: string;
+    /** Sends push notifications through the relay. Without it, the server sends none. */
+    push?: { send(message: PushMessage): Promise<unknown> };
 }
 
 const MAX_BODY_BYTES = 64 * 1024;
@@ -131,8 +139,18 @@ export class RemoteServer {
     private checks: ReadonlyMap<string, string | null> = new Map();
     private keepalive: NodeJS.Timeout | undefined;
     private agentsTimer: NodeJS.Timeout | undefined;
+    /** Sends "Agent needs input" to the phones. Only the process that runs the server sends it, so a phone gets it one time. */
+    private readonly needsInput: NeedsInputPush | undefined;
 
-    constructor(private readonly options: RemoteServerOptions) {}
+    constructor(private readonly options: RemoteServerOptions) {
+        const push = options.push;
+        this.needsInput = push
+            ? new NeedsInputPush({
+                  send: message => push.send(message),
+                  worktreeOf: async id => (await options.backend.sessions()).find(session => session.id === id)?.worktreePath
+              })
+            : undefined;
+    }
 
     /** Applies the settings: starts, restarts or stops the server. */
     async apply(settings: RemoteSettings): Promise<void> {
@@ -217,6 +235,14 @@ export class RemoteServer {
         }, 200);
     }
 
+    /**
+     * A new state of an agent. A wait for input sends a push notification. Only a server that listens sends it, so a
+     * second process with a stopped server sends nothing.
+     */
+    agentState(id: string, state: AgentState | undefined): void {
+        this.needsInput?.agentState(id, this.server ? state : undefined);
+    }
+
     /** Output of a terminal. Only a terminal that a phone shows has a mirror. */
     terminalData(id: string, data: string, seq: number): void {
         const entry = this.mirrors.get(id);
@@ -237,6 +263,7 @@ export class RemoteServer {
     }
 
     terminalExited(id: string): void {
+        this.needsInput?.forget(id);
         const entry = this.mirrors.get(id);
         if (entry) {
             for (const stream of entry.viewers) this.sendEvent(stream.response, 'exit', {});
@@ -245,6 +272,7 @@ export class RemoteServer {
     }
 
     async stop(): Promise<void> {
+        this.needsInput?.stop();
         clearInterval(this.keepalive);
         this.keepalive = undefined;
         clearTimeout(this.agentsTimer);
@@ -358,6 +386,27 @@ export class RemoteServer {
                 // The phone that started the agent shows it from the answer. The other phones get the new list.
                 this.agentsChanged();
                 return sendJson(response, 200, result);
+            }
+            if (request.method === 'GET' && path === '/v1/push/config') {
+                const relayUrl = activeRelayUrl(this.settings);
+                return sendJson(response, 200, (relayUrl ? { enabled: true, relayUrl } : { enabled: false }) satisfies RemotePushConfig);
+            }
+            if (request.method === 'POST' && path === '/v1/push/register') {
+                let registration: ReturnType<typeof parsePushRegistration>;
+                try {
+                    registration = parsePushRegistration(await readJson(request));
+                } catch (error) {
+                    if (error instanceof HttpError) throw error;
+                    throw new HttpError(400, error instanceof Error ? error.message : String(error));
+                }
+                await this.options.devices.setPush(device.id, registration);
+                if (!device.notifications) this.options.backend.onStatusChanged();
+                return sendJson(response, 200, {});
+            }
+            if (request.method === 'DELETE' && path === '/v1/push/register') {
+                await this.options.devices.setPush(device.id, undefined);
+                if (device.notifications) this.options.backend.onStatusChanged();
+                return sendJson(response, 200, {});
             }
             throw new HttpError(404, 'This address does not exist.');
         } catch (error) {

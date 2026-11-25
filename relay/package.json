@@ -1,0 +1,14 @@
+{
+  "name": "shipwarden-push-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sends the push notifications of ShipWarden to the iPhone app through APNs. It keeps no data.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/server.ts"
+  }
+}

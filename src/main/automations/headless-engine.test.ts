@@ -82,6 +82,7 @@ beforeEach(async () => {
         agents,
         http: async () => ({ status: 200, statusText: 'OK', body: '{"ok":true}', truncated: false }),
         notify: (title, body) => notes.push(`${title}: ${body}`),
+        onPending: run => notes.push(`pending ${run.id}`),
         now: () => now
     });
 });
@@ -177,7 +178,7 @@ describe('HeadlessEngine CI failures', () => {
         await engine.onSummaries({ '/repo': { 'fix-login': summary('ERROR') } });
         const [pending] = (await store.runState()).runs;
         expect(pending.status).toBe('pending');
-        expect(notes).toEqual(['fix-ci is waiting for your approval: #7 Fix login']);
+        expect(notes).toEqual(['fix-ci is waiting for your approval: #7 Fix login', `pending ${pending.id}`]);
         expect(await engine.approve(pending.id)).toBe(true);
         await engine.stop();
         expect((await store.runState()).runs[0].status).toBe('done');

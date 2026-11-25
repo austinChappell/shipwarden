@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["src/**", "plugins/**", "scripts/**", "*.ts", "*.mts", "*.json", "!**/fixtures", "!package-lock.json"]
+    "includes": ["src/**", "plugins/**", "scripts/**", "relay/**", "*.ts", "*.mts", "*.json", "!**/fixtures", "!package-lock.json"]
   },
   "formatter": {
     "enabled": true,

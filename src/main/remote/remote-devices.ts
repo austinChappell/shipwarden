@@ -1,10 +1,23 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
-import { PAIRING_TTL_MS, type RemoteDevice, type RemoteDevicePermissions } from '@shared/remote';
+import { PAIRING_TTL_MS, type RemoteDevice, type RemoteDevicePermissions, type RemotePushRegistration } from '@shared/remote';
 import { JsonStore } from '../tasks/json-store';
 
 interface StoredDevice extends RemoteDevice {
     /** The SHA-256 hash of the token, as hex. The token itself is only on the phone. */
     tokenHash: string;
+    /** The ticket and the push key of the push relay. The phone sent them. */
+    push?: RemotePushRegistration;
+}
+
+/** A paired phone that can get push notifications. */
+export interface PushTarget {
+    deviceId: string;
+    push: RemotePushRegistration;
+}
+
+/** The device without its secrets, for the settings page and the request handlers. */
+function publicDevice({ tokenHash: _hash, push, ...device }: StoredDevice): RemoteDevice {
+    return push ? { ...device, notifications: true } : device;
 }
 
 interface PendingPairing {
@@ -53,7 +66,7 @@ export class RemoteDevices {
     }
 
     async list(): Promise<RemoteDevice[]> {
-        return (await this.store.get()).devices.map(({ tokenHash: _hash, ...device }) => device);
+        return (await this.store.get()).devices.map(publicDevice);
     }
 
     /** Makes a new pairing code. The old code stops. */
@@ -98,8 +111,7 @@ export class RemoteDevices {
                 devices: value.devices.map(device => (device.id === stored.id ? { ...device, lastSeenAt: now } : device))
             }));
         }
-        const { tokenHash: _hash, ...device } = stored;
-        return device;
+        return publicDevice(stored);
     }
 
     /** Changes the permissions of a phone. Returns false when the phone is not paired. */
@@ -114,6 +126,36 @@ export class RemoteDevices {
             })
         }));
         return found;
+    }
+
+    /**
+     * Saves the push registration of a phone, or removes it (undefined). Writes the file only for a change.
+     * Returns false when the phone is not paired.
+     */
+    async setPush(id: string, push: RemotePushRegistration | undefined): Promise<boolean> {
+        const stored = (await this.store.get()).devices.find(device => device.id === id);
+        if (!stored) return false;
+        const same = push ? stored.push?.relayUrl === push.relayUrl && stored.push.ticket === push.ticket && stored.push.key === push.key : !stored.push;
+        if (same) return true;
+        await this.store.update(value => ({
+            devices: value.devices.map(device => {
+                if (device.id !== id) return device;
+                const { push: _old, ...rest } = device;
+                return push ? { ...rest, push } : rest;
+            })
+        }));
+        return true;
+    }
+
+    /** Removes a push registration that the relay does not accept anymore. A newer ticket of the phone stays. */
+    async clearPush(id: string, ticket: string): Promise<void> {
+        const stored = (await this.store.get()).devices.find(device => device.id === id);
+        if (stored?.push?.ticket === ticket) await this.setPush(id, undefined);
+    }
+
+    /** The phones with a ticket of the relay at this address. */
+    async pushTargets(relayUrl: string): Promise<PushTarget[]> {
+        return (await this.store.get()).devices.flatMap(device => (device.push?.relayUrl === relayUrl ? [{ deviceId: device.id, push: device.push }] : []));
     }
 
     async remove(id: string): Promise<void> {

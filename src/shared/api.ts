@@ -682,6 +682,8 @@ export interface ShipWardenApi {
         removeDevice(id: string): Promise<void>;
         /** Changes the permissions of a paired phone, for example "Start agents". */
         setDevicePermissions(id: string, permissions: RemoteDevicePermissions): Promise<void>;
+        /** Sends a test push notification to the registered phones. Returns the number of phones. Throws an error that tells what is missing. */
+        testPush(): Promise<number>;
         /** Called when a phone pairs, connects or disconnects. */
         onChanged(listener: () => void): () => void;
     };
@@ -1071,6 +1073,7 @@ export const IpcChannels = {
     remoteCancelPairing: 'remote:cancelPairing',
     remoteRemoveDevice: 'remote:removeDevice',
     remoteSetDevicePermissions: 'remote:setDevicePermissions',
+    remoteTestPush: 'remote:testPush',
     remoteChanged: 'remote:changed',
     snoozesList: 'snoozes:list',
     snoozesSet: 'snoozes:set',

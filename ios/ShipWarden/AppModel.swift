@@ -181,6 +181,8 @@ final class AppModel {
             apply(try await client.state())
             pendingRuns = (try? await client.pendingRuns()) ?? []
             connection = .connected
+            // The registration runs next to the event stream. It does not block the agent list.
+            Task { await self.registerPush(with: client) }
             for try await event in client.events("/v1/events") {
                 if event.name == "agents", let list = try? JSONDecoder().decode([RemoteAgent].self, from: event.data) {
                     agents = list
@@ -197,6 +199,25 @@ final class AppModel {
             if Task.isCancelled { return true }
             connection = .failed(error.localizedDescription)
             return false
+        }
+    }
+
+    // MARK: Push notifications
+
+    /// When the Mac sends push notifications, asks for permission, registers the device token with the push relay, and
+    /// gives the ticket of the relay to the Mac. iOS asks the user only one time. When the user does not allow
+    /// notifications, the Mac forgets this phone for notifications.
+    private func registerPush(with client: APIClient) async {
+        guard let config = try? await client.pushConfig(), config.enabled, let relayUrl = config.relayUrl else { return }
+        guard let token = await PushCenter.shared.requestToken() else {
+            try? await client.unregisterPush()
+            return
+        }
+        do {
+            let registration = try await PushRelay.register(relayUrl: relayUrl, deviceToken: token)
+            try await client.registerPush(registration)
+        } catch {
+            print("[push] The registration did not finish: \(error.localizedDescription)")
         }
     }
 

@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+    activeRelayUrl,
+    cleanRelayUrl,
+    DEFAULT_PUSH_RELAY_URL,
     DEFAULT_REMOTE_PORT,
+    DEFAULT_REMOTE_SETTINGS,
     inputWrites,
     keyBytes,
     normalizeRemoteSettings,
     openTaskChoices,
     pairingLink,
     parsePairingLink,
+    parsePushRegistration,
     parseStartRequest,
     promptBranchName
 } from './remote';
@@ -32,11 +37,54 @@ describe('pairing links', () => {
 });
 
 describe('normalizeRemoteSettings', () => {
+    const push = { notifications: false, relayUrl: DEFAULT_PUSH_RELAY_URL };
     it('is off by default and keeps a valid port only', () => {
-        expect(normalizeRemoteSettings(undefined)).toEqual({ enabled: false, port: DEFAULT_REMOTE_PORT, keepRunning: false });
-        expect(normalizeRemoteSettings({ enabled: true, port: 8443 })).toEqual({ enabled: true, port: 8443, keepRunning: false });
-        expect(normalizeRemoteSettings({ enabled: true, port: 8443, keepRunning: true })).toEqual({ enabled: true, port: 8443, keepRunning: true });
-        expect(normalizeRemoteSettings({ enabled: 'yes', port: 80 })).toEqual({ enabled: false, port: DEFAULT_REMOTE_PORT, keepRunning: false });
+        expect(normalizeRemoteSettings(undefined)).toEqual({ enabled: false, port: DEFAULT_REMOTE_PORT, keepRunning: false, ...push });
+        expect(normalizeRemoteSettings({ enabled: true, port: 8443 })).toEqual({ enabled: true, port: 8443, keepRunning: false, ...push });
+        expect(normalizeRemoteSettings({ enabled: true, port: 8443, keepRunning: true })).toEqual({ enabled: true, port: 8443, keepRunning: true, ...push });
+        expect(normalizeRemoteSettings({ enabled: 'yes', port: 80 })).toEqual({ enabled: false, port: DEFAULT_REMOTE_PORT, keepRunning: false, ...push });
+    });
+
+    it('keeps the notification switch and a valid relay address', () => {
+        expect(normalizeRemoteSettings({ notifications: true, relayUrl: 'https://relay.example.com/' })).toMatchObject({
+            notifications: true,
+            relayUrl: 'https://relay.example.com'
+        });
+        expect(normalizeRemoteSettings({ relayUrl: 'http://relay.example.com' }).relayUrl).toBe(DEFAULT_PUSH_RELAY_URL);
+    });
+});
+
+describe('the relay address', () => {
+    it('needs HTTPS, except for localhost', () => {
+        expect(cleanRelayUrl('https://relay.example.com/push/')).toBe('https://relay.example.com/push');
+        expect(cleanRelayUrl('http://localhost:8787')).toBe('http://localhost:8787');
+        expect(cleanRelayUrl('http://relay.example.com')).toBeUndefined();
+        expect(cleanRelayUrl('https://relay.example.com/?a=1')).toBeUndefined();
+        expect(cleanRelayUrl('not a url')).toBeUndefined();
+        expect(cleanRelayUrl(42)).toBeUndefined();
+    });
+
+    it('is active only with the phone connection, the switch, and a relay that is not the placeholder', () => {
+        const on = { ...DEFAULT_REMOTE_SETTINGS, enabled: true, notifications: true, relayUrl: 'https://relay.example.com' };
+        expect(activeRelayUrl(on)).toBe('https://relay.example.com');
+        expect(activeRelayUrl({ ...on, enabled: false })).toBeUndefined();
+        expect(activeRelayUrl({ ...on, notifications: false })).toBeUndefined();
+        expect(activeRelayUrl({ ...on, relayUrl: DEFAULT_PUSH_RELAY_URL })).toBeUndefined();
+        expect(activeRelayUrl(undefined)).toBeUndefined();
+    });
+});
+
+describe('parsePushRegistration', () => {
+    const valid = { relayUrl: 'https://relay.example.com', ticket: `v1.${'a'.repeat(80)}`, key: 'k'.repeat(43) };
+    it('accepts a ticket and a key of the relay', () => {
+        expect(parsePushRegistration(valid)).toEqual(valid);
+    });
+
+    it('refuses values that are not valid', () => {
+        expect(() => parsePushRegistration({ ...valid, relayUrl: 'http://relay.example.com' })).toThrow('relay address');
+        expect(() => parsePushRegistration({ ...valid, ticket: 'abc' })).toThrow('ticket');
+        expect(() => parsePushRegistration({ ...valid, key: 'short' })).toThrow('push key');
+        expect(() => parsePushRegistration(null)).toThrow('relay address');
     });
 });
 

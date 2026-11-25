@@ -347,6 +347,11 @@ select. A new phone cannot do this. Turn on **Start agents** for the phone in Se
 same code as "Start in worktree" and the usage budget of Settings › Agents. While ShipWarden is closed, the background
 helper starts the agent from a prompt. A start on a task needs the app.
 
+The phone can get a push notification when an agent needs input or an automation is waiting for approval, also when
+the app on the phone is closed. A tap opens the agent. The notifications go through a small push relay that you deploy
+(see [relay/README.md](relay/README.md)). The relay sees only the worktree name and IDs, never the agent text. Turn on
+**Send push notifications** in Settings › Mobile and type the relay address.
+
 > The iPhone app is in beta. It is in App Store review now, so it is not in the App Store yet. Until
 > Apple approves it, build it from source with Xcode. See [ios/README.md](ios/README.md).
 
@@ -430,6 +435,8 @@ This script deletes `/tmp/sw-fresh` and then runs `SHIPWARDEN_USER_DATA_DIR=/tmp
 | `src/renderer/` | The React UI |
 | `src/shared/` | Types and functions that the main process and the UI both use |
 | `src/main/remote/` | The HTTPS server for the iPhone app |
+| `src/main/push/` | The push notifications to the iPhone app, through the relay |
+| `relay/` | The push relay: a small Node server with the APNs key. It keeps no data. |
 | `ios/` | The iPhone app (SwiftUI) |
 | `docs/ARCHITECTURE.md` | Decisions and the plan |
 

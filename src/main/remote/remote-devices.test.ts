@@ -57,4 +57,26 @@ describe('RemoteDevices', () => {
         expect(cleanDeviceName(42)).toBe('Phone');
         expect(cleanDeviceName('x'.repeat(100))).toHaveLength(60);
     });
+    it('keeps the push registration of a phone and shows only a flag', async () => {
+        const { devices, file } = make();
+        const { code } = devices.startPairing();
+        const result = await devices.pair(code, 'Phone');
+        const id = result!.device.id;
+        const push = { relayUrl: 'https://relay.example.com', ticket: 'v1.ticket', key: 'key' };
+        expect(await devices.setPush(id, push)).toBe(true);
+        expect(await devices.setPush('unknown', push)).toBe(false);
+        expect((await devices.list())[0]).toMatchObject({ id, notifications: true });
+        expect((await devices.list())[0]).not.toHaveProperty('push');
+        expect((await devices.authenticate(result!.token))?.notifications).toBe(true);
+        expect(await devices.pushTargets('https://relay.example.com')).toEqual([{ deviceId: id, push }]);
+        expect(await devices.pushTargets('https://other.example.com')).toEqual([]);
+        expect(readFileSync(file, 'utf8')).toContain('v1.ticket');
+
+        // A ticket that the relay refuses goes away, but only when the phone did not send a newer one.
+        await devices.clearPush(id, 'v1.old');
+        expect(await devices.pushTargets('https://relay.example.com')).toHaveLength(1);
+        await devices.clearPush(id, 'v1.ticket');
+        expect(await devices.pushTargets('https://relay.example.com')).toEqual([]);
+        expect((await devices.list())[0].notifications).toBeUndefined();
+    });
 });

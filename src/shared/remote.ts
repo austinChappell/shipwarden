@@ -29,14 +29,60 @@ export interface RemoteSettings {
      * A macOS launch agent starts the helper. Off by default.
      */
     keepRunning: boolean;
+    /** True when ShipWarden sends push notifications to the paired phones through the push relay. Off by default. */
+    notifications: boolean;
+    /** The address of the push relay (`relay/` in the ShipWarden repository). */
+    relayUrl: string;
 }
 
-export const DEFAULT_REMOTE_SETTINGS: RemoteSettings = { enabled: false, port: DEFAULT_REMOTE_PORT, keepRunning: false };
+/**
+ * The relay address until the user deploys a relay. The ".invalid" domain never resolves, so ShipWarden sends no
+ * notifications with it. Change this value when an official relay exists.
+ */
+export const DEFAULT_PUSH_RELAY_URL = 'https://shipwarden-relay.invalid';
+
+export const DEFAULT_REMOTE_SETTINGS: RemoteSettings = {
+    enabled: false,
+    port: DEFAULT_REMOTE_PORT,
+    keepRunning: false,
+    notifications: false,
+    relayUrl: DEFAULT_PUSH_RELAY_URL
+};
+
+/**
+ * Checks a relay address. Returns the address without a "/" at the end, else undefined. The relay must use HTTPS.
+ * Plain HTTP is accepted only for this Mac (localhost), for a test.
+ */
+export function cleanRelayUrl(value: unknown): string | undefined {
+    if (typeof value !== 'string') return undefined;
+    let url: URL;
+    try {
+        url = new URL(value.trim());
+    } catch {
+        return undefined;
+    }
+    const local = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) return undefined;
+    if (url.search || url.hash || url.username || url.password) return undefined;
+    return url.toString().replace(/\/+$/, '');
+}
+
+/** The relay address that ShipWarden uses now. Undefined while the phone connection or the notifications are off, or before the user sets a relay. */
+export function activeRelayUrl(settings: RemoteSettings | undefined): string | undefined {
+    if (!settings?.enabled || !settings.notifications || settings.relayUrl === DEFAULT_PUSH_RELAY_URL) return undefined;
+    return cleanRelayUrl(settings.relayUrl);
+}
 
 export function normalizeRemoteSettings(raw: unknown): RemoteSettings {
     const value = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
     const port = typeof value.port === 'number' && Number.isInteger(value.port) && value.port >= 1024 && value.port <= 65535 ? value.port : DEFAULT_REMOTE_PORT;
-    return { enabled: value.enabled === true, port, keepRunning: value.keepRunning === true };
+    return {
+        enabled: value.enabled === true,
+        port,
+        keepRunning: value.keepRunning === true,
+        notifications: value.notifications === true,
+        relayUrl: cleanRelayUrl(value.relayUrl) ?? DEFAULT_PUSH_RELAY_URL
+    };
 }
 
 /** A phone that the user paired. The token is not here. The main process keeps only a hash of it. */
@@ -47,6 +93,8 @@ export interface RemoteDevice {
     lastSeenAt?: number;
     /** True when the phone can start agents (`POST /v1/agents/start`). A new phone cannot. Settings › Mobile turns it on. */
     canStartAgents?: boolean;
+    /** True when the phone sent a ticket of the push relay, so ShipWarden can send it notifications. */
+    notifications?: boolean;
 }
 
 /** The permissions of a paired phone that the user can change in Settings › Mobile. */
@@ -397,6 +445,37 @@ const BRANCH_WORDS = 6;
 export function promptBranchName(prompt: string, now = Date.now()): string {
     const words = prompt.split(/\s+/).filter(Boolean).slice(0, BRANCH_WORDS).join(' ');
     return branchFromName(words) || `phone-${new Date(now).toISOString().slice(0, 16).replace(/[-:T]/g, '')}`;
+}
+
+/** The answer to `GET /v1/push/config`. The phone registers with the relay only when `enabled` is true. */
+export interface RemotePushConfig {
+    enabled: boolean;
+    /** The address of the push relay. Only when `enabled` is true. */
+    relayUrl?: string;
+}
+
+/**
+ * The body of `POST /v1/push/register`. The phone sends its APNs device token to the relay and gets a ticket and a
+ * push key. It gives both to the Mac. The Mac never sees the device token.
+ */
+export interface RemotePushRegistration {
+    /** The relay that made the ticket. */
+    relayUrl: string;
+    ticket: string;
+    /** The key that signs the push requests of this ticket, as base64url. */
+    key: string;
+}
+
+/** Reads the body of `POST /v1/push/register`. Throws an error with a message for the phone when a value is not valid. */
+export function parsePushRegistration(body: unknown): RemotePushRegistration {
+    const value = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+    const relayUrl = cleanRelayUrl(value.relayUrl);
+    if (!relayUrl) throw new Error('The relay address is not valid.');
+    const ticket = typeof value.ticket === 'string' ? value.ticket : '';
+    const key = typeof value.key === 'string' ? value.key : '';
+    if (!/^v\d+\.[\w-]{20,1000}$/.test(ticket)) throw new Error('The ticket of the relay is not valid.');
+    if (!/^[\w-]{43}$/.test(key)) throw new Error('The push key of the relay is not valid.');
+    return { relayUrl, ticket, key };
 }
 
 /** The body of each answer with an error status. */
