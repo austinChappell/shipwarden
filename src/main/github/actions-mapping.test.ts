@@ -291,7 +291,7 @@ describe('markOldAttempts', () => {
         ];
         const [failed, passed, running] = markOldAttempts(checks, [oldRun, activeRun]);
         for (const check of [failed, passed]) {
-            expect(check).toMatchObject({ status: 'queued', conclusion: null, waitingForRerun: true });
+            expect(check).toMatchObject({ status: 'queued', conclusion: null, waitingForRerun: true, runId: 800, newerRunId: 900 });
         }
         expect(running).toBe(checks[2]);
     });
