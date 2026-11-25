@@ -1648,8 +1648,8 @@ export function App() {
                                                         </>
                                                     }
                                                 >
-                                                    Add a git repository from your Mac, or clone one from GitHub. Then create worktrees and start agents in
-                                                    them.
+                                                    Add a git repository or a folder from your Mac, or clone a repository from GitHub. Then create worktrees and
+                                                    start agents in them.
                                                 </EmptyState>
                                             )}
                                             {repos.length > 0 && selected && (
@@ -1718,6 +1718,7 @@ export function App() {
                                 <RightPanel
                                     root={selectedPath}
                                     repo={selectedRepo}
+                                    noGit={selected?.noGit}
                                     tab={panelTab}
                                     onSelectTab={selectPanelTab}
                                     activeFile={tabs.activeFile}

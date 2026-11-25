@@ -28,6 +28,17 @@ describe('GitWorktreeService', () => {
         await fs.rm(tmp, { recursive: true, force: true });
     });
 
+    it('lists a folder without git as one worktree with noGit', async () => {
+        const folder = path.join(tmp, 'plain');
+        await fs.mkdir(folder);
+        expect(await service.list(folder)).toEqual([{ path: folder, head: '', isMain: true, isBare: false, locked: false, prunable: false, noGit: true }]);
+        await expect(service.create({ repoPath: folder, branch: 'feature/a' })).rejects.toThrow('is not a git repository');
+    });
+
+    it('fails to list a folder that does not exist', async () => {
+        await expect(service.list(path.join(tmp, 'missing'))).rejects.toThrow();
+    });
+
     it('lists the local and remote branches and the default start point', async () => {
         const origin = path.join(tmp, 'origin.git');
         git(tmp, 'clone', '-q', '--bare', repo, origin);

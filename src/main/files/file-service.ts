@@ -10,6 +10,10 @@ export const MAX_FILE_SIZE = MAX_TEXT_FILE_SIZE;
 const SNIFF_BYTES = 8000;
 const MAX_CONTENT_MATCHES = 500;
 const HIDDEN_NAMES = new Set(['.git', '.DS_Store']);
+/** The folders that the file list and the search skip in a folder without git. Git cannot read a .gitignore file there. */
+const SKIPPED_FOLDERS = ['node_modules', '.git'];
+/** The maximum number of files in the file list of a folder without git. */
+const MAX_PLAIN_FILES = 50_000;
 
 interface GitResult {
     stdout: string;
@@ -35,6 +39,26 @@ function git(cwd: string, args: string[], input?: string): Promise<GitResult> {
             child.stdin?.end(input);
         }
     });
+}
+
+/** Lists the files in a folder without git, as paths relative to the folder. Symbolic links to folders are not followed. */
+async function walkFiles(root: string): Promise<string[]> {
+    const files: string[] = [];
+    const pending = [''];
+    while (pending.length > 0 && files.length < MAX_PLAIN_FILES) {
+        const directory = pending.pop() as string;
+        const dirents = await fs.readdir(path.join(root, directory), { withFileTypes: true }).catch(() => []);
+        for (const dirent of dirents) {
+            if (HIDDEN_NAMES.has(dirent.name)) continue;
+            const relative = directory ? `${directory}/${dirent.name}` : dirent.name;
+            if (dirent.isDirectory()) {
+                if (!SKIPPED_FOLDERS.includes(dirent.name)) pending.push(relative);
+            } else if (files.length < MAX_PLAIN_FILES) {
+                files.push(relative);
+            }
+        }
+    }
+    return files.sort();
 }
 
 /**
@@ -161,11 +185,14 @@ export class FileService {
         return entries.sort(compareEntries);
     }
 
-    /** Lists all files that git tracks or does not ignore. The file name filter uses this list. */
+    /**
+     * Lists all files that git tracks or does not ignore. The file name filter uses this list.
+     * In a folder without git, the list has all files, except the files in the skipped folders.
+     */
     async listFiles(root: string): Promise<string[]> {
         const { stdout, code } = await git(root, ['ls-files', '--cached', '--others', '--exclude-standard', '-z']);
         if (code !== 0) {
-            throw new Error(`The folder "${root}" is not a git worktree.`);
+            return walkFiles(root);
         }
         const files = stdout.split('\0').filter(Boolean);
         // ls-files lists a file twice when it is tracked and changed in a merge. Remove the duplicates.
@@ -177,20 +204,30 @@ export class FileService {
         if (!query.trim()) {
             return { matches: [], truncated: false };
         }
-        const { stdout, code } = await git(root, [
-            'grep',
-            '--untracked',
-            '-I',
-            ...(caseSensitive ? [] : ['-i']),
-            '--fixed-strings',
-            '--null',
-            '--line-number',
-            '--no-color',
-            '-e',
-            query,
-            '--',
-            '.'
-        ]);
+        const search = (scope: string[], pathspecs: string[]) =>
+            git(root, [
+                'grep',
+                ...scope,
+                '-I',
+                ...(caseSensitive ? [] : ['-i']),
+                '--fixed-strings',
+                '--null',
+                '--line-number',
+                '--no-color',
+                '-e',
+                query,
+                '--',
+                '.',
+                ...pathspecs
+            ]);
+        let { stdout, code } = await search(['--untracked'], []);
+        // Git exits with code 128 outside a repository. Then --no-index searches the files of the folder.
+        if (code === 128) {
+            ({ stdout, code } = await search(
+                ['--no-index'],
+                SKIPPED_FOLDERS.map(name => `:(exclude,glob)**/${name}/**`)
+            ));
+        }
         // git grep exits with code 1 when there are no matches.
         if (code !== 0 && code !== 1) {
             throw new Error(`git grep failed with exit code ${code}.`);

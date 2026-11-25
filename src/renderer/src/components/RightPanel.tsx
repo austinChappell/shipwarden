@@ -49,7 +49,12 @@ interface Props {
     screenshotSettings?: ScreenshotSettings;
     /** Opens the settings of the repository. */
     onOpenRepoSettings?(): void;
+    /** True for a folder without git. Then only the Files and the Processes tabs show. */
+    noGit?: boolean;
 }
+
+/** The tabs that a folder without git can show. The other tabs need git or a pull request. */
+const NO_GIT_TABS: readonly PanelTab[] = ['files', 'processes'];
 
 /** True when the text is the name of a tab of the right panel. */
 export function isPanelTab(value: string | undefined): value is PanelTab {
@@ -86,13 +91,15 @@ export function writePanelTab(tab: PanelTab): void {
 
 /** The right panel: the file explorer, the pull request of the branch and its checks. */
 export function RightPanel(props: Props) {
-    const tab = props.tab;
+    const noGit = props.noGit === true;
+    // A git tab that the user selected for another worktree shows the files in a folder without git.
+    const tab = noGit && !NO_GIT_TABS.includes(props.tab) ? 'files' : props.tab;
     const status = props.github.status;
     const pr = status?.pullRequest;
     const openInReview = props.onOpenInReview;
     const unresolved = pr?.threads.filter(thread => !thread.isResolved).length ?? 0;
     // The changes load while the panel shows, also on other tabs, for the count on the Changes tab.
-    const git = useGitChanges(props.root);
+    const git = useGitChanges(noGit ? undefined : props.root);
     const changed = git.changes ? changeCount(git.changes) : 0;
     const behind = git.changes?.behind ?? 0;
 
@@ -124,29 +131,31 @@ export function RightPanel(props: Props) {
         <aside className="explorer" data-tour="rightPanel">
             <div className="panel-tabs" role="tablist" aria-label="Right panel">
                 {tabButton('files', 'Files', <Files size={17} strokeWidth={1.5} />)}
-                {tabButton(
-                    'changes',
-                    [changed ? `Changes (${changed} files)` : 'Changes', behind ? `${behind} commits to pull` : ''].filter(Boolean).join(' · '),
-                    <GitCommitVertical size={17} strokeWidth={1.5} />,
-                    // A dot, without a number: local changes (accent), or only commits to pull (blue). The tooltip has the counts.
-                    changed > 0 || behind > 0 ? <span className={`panel-badge${changed === 0 ? ' pull' : ''}`} aria-hidden="true" /> : undefined
-                )}
-                {tabButton(
-                    'pr',
-                    [
-                        pr ? `Pull request #${pr.number}` : 'Pull request',
-                        unresolved ? `${unresolved} unresolved ${unresolved === 1 ? 'thread' : 'threads'}` : ''
-                    ]
-                        .filter(Boolean)
-                        .join(' · '),
-                    <GitPullRequest size={17} strokeWidth={1.5} />,
-                    unresolved > 0 ? <span className="panel-badge" aria-hidden="true" /> : undefined
-                )}
-                {tabButton('checks', 'Checks', <CircleCheck size={17} strokeWidth={1.5} />)}
-                {tabButton('pipelines', 'Pipelines of this repository', <Workflow size={17} strokeWidth={1.5} />)}
+                {!noGit &&
+                    tabButton(
+                        'changes',
+                        [changed ? `Changes (${changed} files)` : 'Changes', behind ? `${behind} commits to pull` : ''].filter(Boolean).join(' · '),
+                        <GitCommitVertical size={17} strokeWidth={1.5} />,
+                        // A dot, without a number: local changes (accent), or only commits to pull (blue). The tooltip has the counts.
+                        changed > 0 || behind > 0 ? <span className={`panel-badge${changed === 0 ? ' pull' : ''}`} aria-hidden="true" /> : undefined
+                    )}
+                {!noGit &&
+                    tabButton(
+                        'pr',
+                        [
+                            pr ? `Pull request #${pr.number}` : 'Pull request',
+                            unresolved ? `${unresolved} unresolved ${unresolved === 1 ? 'thread' : 'threads'}` : ''
+                        ]
+                            .filter(Boolean)
+                            .join(' · '),
+                        <GitPullRequest size={17} strokeWidth={1.5} />,
+                        unresolved > 0 ? <span className="panel-badge" aria-hidden="true" /> : undefined
+                    )}
+                {!noGit && tabButton('checks', 'Checks', <CircleCheck size={17} strokeWidth={1.5} />)}
+                {!noGit && tabButton('pipelines', 'Pipelines of this repository', <Workflow size={17} strokeWidth={1.5} />)}
                 {tabButton('processes', 'Processes and ports', <Plug size={17} strokeWidth={1.5} />)}
-                {tabButton('checkpoints', 'Checkpoints of the agent turns', <History size={17} strokeWidth={1.5} />)}
-                {tabButton('screenshots', 'Screenshots of visual changes', <Camera size={17} strokeWidth={1.5} />)}
+                {!noGit && tabButton('checkpoints', 'Checkpoints of the agent turns', <History size={17} strokeWidth={1.5} />)}
+                {!noGit && tabButton('screenshots', 'Screenshots of visual changes', <Camera size={17} strokeWidth={1.5} />)}
             </div>
             {tab === 'files' && (
                 <FileExplorer

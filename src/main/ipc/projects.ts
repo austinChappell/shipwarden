@@ -45,7 +45,7 @@ export function registerProjectIpc({
     ipcMain.handle(IpcChannels.projectsChooseRepo, async (_event, id: string) => {
         const { codeFolder } = await settings.get();
         const result = await showOpenDialog(window.get(), {
-            title: 'Add Repository',
+            title: 'Add a Repository or a Folder',
             buttonLabel: 'Add',
             properties: ['openDirectory'],
             ...(codeFolder ? { defaultPath: expandHome(codeFolder) } : {})

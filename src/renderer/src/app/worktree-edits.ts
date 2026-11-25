@@ -102,7 +102,7 @@ export function worktreeMenuItems(
     editorLabel = 'Open in Editor'
 ): ContextMenuItem[] {
     const snoozeOptions = Object.keys(SNOOZE_LABELS) as SnoozeOption[];
-    return [
+    const items: ContextMenuItem[] = [
         ...(hasTask
             ? [
                   { id: 'task', label: `Open Task${taskKey ? ` ${taskKey}` : ''}` },
@@ -137,6 +137,12 @@ export function worktreeMenuItems(
             danger: true
         }
     ];
+    if (!worktree.noGit) return items;
+    // A folder without git has no branch to rebase and no worktree to remove.
+    const gitOnly = new Set(['rebase', 'remove', 'removeBranch', 'forceRemoveBranch']);
+    const kept = items.filter(item => !('id' in item && item.id && gitOnly.has(item.id)));
+    const last = kept.at(-1);
+    return last && 'type' in last ? kept.slice(0, -1) : kept;
 }
 
 /** Returns the snooze option of a menu choice such as "snooze:hour". Returns undefined for other choices. */

@@ -173,6 +173,33 @@ describe('FileService', () => {
     });
 });
 
+describe('FileService in a folder without git', () => {
+    let root: string;
+    const service = new FileService();
+
+    beforeEach(async () => {
+        root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'shipwarden-plain-')));
+        await fs.mkdir(path.join(root, 'notes'));
+        await fs.mkdir(path.join(root, 'node_modules', 'pkg'), { recursive: true });
+        await fs.writeFile(path.join(root, 'notes', 'todo.md'), 'Buy milk\n');
+        await fs.writeFile(path.join(root, 'readme.txt'), 'Hello\n');
+        await fs.writeFile(path.join(root, 'node_modules', 'pkg', 'index.js'), 'milk\n');
+    });
+
+    afterEach(async () => {
+        await fs.rm(root, { recursive: true, force: true });
+    });
+
+    it('lists the files without the skipped folders', async () => {
+        expect(await service.listFiles(root)).toEqual(['notes/todo.md', 'readme.txt']);
+    });
+
+    it('searches the files without the skipped folders', async () => {
+        const result = await service.searchContents(root, 'MILK');
+        expect(result.matches).toEqual([{ path: 'notes/todo.md', line: 1, text: 'Buy milk' }]);
+    });
+});
+
 describe('resolveInside', () => {
     it('accepts paths in the root and rejects paths outside it', () => {
         expect(resolveInside('/repo', 'src/a.ts')).toBe('/repo/src/a.ts');
