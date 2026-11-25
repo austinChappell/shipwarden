@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CliInstallState } from '@shared/cli';
+import { isValidCliAlias, type CliInstallState } from '@shared/cli';
+import type { AppSettings } from '@shared/settings';
 import { keyRoots } from '../query-client';
 import { errorText } from '../util';
 import { SettingsGroup, SettingsRow } from './settings-ui';
-import { Button } from './ui';
+import { Button, Input, Switch } from './ui';
 
 const api = window.shipwarden.cli;
 
@@ -16,12 +17,23 @@ function stateText(state: CliInstallState | undefined): string {
     return state.inPath ? where : `${where} Add the folder of the link to the PATH of your shell, or type the full path.`;
 }
 
-/** The `shipwarden` command (Settings › Agents): the link in a bin folder, and the skill file for agents. */
-export function CliSettingsGroup() {
+/** The text under "Short name": what the alias does, and the state of its link. */
+function aliasText(state: CliInstallState | undefined, alias: AppSettings['cliAlias']): string {
+    const what = `Type “${alias.name}” in place of “shipwarden”.`;
+    if (!alias.enabled) return 'Off. Only the shipwarden command is available.';
+    if (state?.aliasConflict) return `${state.aliasConflict} exists, and it is not a link of ShipWarden. ShipWarden does not replace it. Choose another name.`;
+    if (state?.alias) return `${what} Installed in ${state.alias}.`;
+    return `${what} Install adds the link next to the shipwarden link.`;
+}
+
+/** The `shipwarden` command (Settings › Agents): the link in a bin folder, its short name, and the skill file for agents. */
+export function CliSettingsGroup({ settings, onSave }: { settings: AppSettings; onSave(change: Partial<AppSettings>): Promise<void> }) {
     const queryClient = useQueryClient();
     const [error, setError] = useState<string>();
     const [busy, setBusy] = useState(false);
+    const [aliasName, setAliasName] = useState(settings.cliAlias.name);
     const state = useQuery({ queryKey: keyRoots.cliInstall, queryFn: () => api.installState() });
+    useEffect(() => setAliasName(settings.cliAlias.name), [settings.cliAlias.name]);
 
     const change = async (action: () => Promise<CliInstallState>) => {
         setError(undefined);
@@ -35,6 +47,21 @@ export function CliSettingsGroup() {
         }
     };
     const installed = !!state.data?.installed;
+
+    // The main process changes the alias link with the setting. The page then reads the new state of the links.
+    const saveAlias = async (cliAlias: AppSettings['cliAlias']) => {
+        await onSave({ cliAlias });
+        await queryClient.invalidateQueries({ queryKey: keyRoots.cliInstall });
+    };
+    const trimmed = aliasName.trim();
+    const aliasValid = isValidCliAlias(trimmed);
+    const commitName = () => {
+        if (!aliasValid) {
+            setAliasName(settings.cliAlias.name);
+            return;
+        }
+        if (trimmed !== settings.cliAlias.name) void saveAlias({ ...settings.cliAlias, name: trimmed });
+    };
 
     return (
         <SettingsGroup
@@ -53,6 +80,33 @@ export function CliSettingsGroup() {
             >
                 {error && <div className="form-error">{error}</div>}
             </SettingsRow>
+            <SettingsRow
+                label="Short name"
+                description={aliasText(state.data, settings.cliAlias)}
+                control={
+                    <div className="cli-alias-control">
+                        <Input
+                            size="sm"
+                            mono
+                            aria-label="Short name"
+                            value={aliasName}
+                            invalid={!aliasValid}
+                            disabled={!settings.cliAlias.enabled}
+                            spellCheck={false}
+                            autoComplete="off"
+                            title="1 to 32 letters, digits, “.”, “_”, or “-”"
+                            onChange={event => setAliasName(event.target.value)}
+                            onBlur={commitName}
+                            onKeyDown={event => event.key === 'Enter' && (event.target as HTMLInputElement).blur()}
+                        />
+                        <Switch
+                            checked={settings.cliAlias.enabled}
+                            title="Add a short name for the shipwarden command"
+                            onChange={enabled => void saveAlias({ ...settings.cliAlias, enabled })}
+                        />
+                    </div>
+                }
+            />
             <SettingsRow
                 label="Agent skill"
                 description="Run “shipwarden skill install” to give Claude Code a skill that explains the command. For another agent, run “shipwarden skill install --dir <skills folder>”, or “shipwarden skill” to print the file."

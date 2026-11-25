@@ -20,6 +20,8 @@
     "format": "biome format --write .",
     "check": "biome ci .",
     "check:ios-contract": "sh scripts/check-ios-contract.sh",
+    "ios:upload": "bash scripts/ios-upload.sh",
+    "ios:upload:dry": "bash scripts/ios-upload.sh --dry-run",
     "postinstall": "node scripts/postinstall.mjs",
     "dist": "electron-vite build && electron-builder --mac",
     "dist:dir": "electron-vite build && electron-builder --mac --dir",

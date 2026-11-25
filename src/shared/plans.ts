@@ -3,6 +3,7 @@ import type { AgentProgram } from './agent-programs';
 import { shellQuote, type AgentState } from './agents';
 import { fence } from './ask-agent';
 import { MAX_GROUP_PULL_REQUESTS } from './pr-groups';
+import type { Project } from './projects';
 import type { TaskLink } from './tasks';
 
 /**
@@ -1109,4 +1110,21 @@ export function planCounts(plan: Pick<Plan, 'steps'>): { steps: number; pullRequ
         newTasks: active.filter(step => step.task.kind === 'new').length,
         repos: new Set(active.flatMap(step => (step.repo ? [step.repo] : []))).size
     };
+}
+
+/** The plans of one project in the list. */
+export interface PlanGroup {
+    project: Project;
+    plans: Plan[];
+}
+
+/**
+ * Puts the plans into groups by project, like the Agents view: the active project first, then the other projects in
+ * the order of the sidebar. A project without plans has no group. A plan of a removed project does not show.
+ */
+export function planGroups(plans: readonly Plan[], projects: readonly Project[], activeId: string): PlanGroup[] {
+    return [...projects]
+        .sort((a, b) => (a.id === activeId ? -1 : b.id === activeId ? 1 : 0))
+        .map(item => ({ project: item, plans: plans.filter(plan => plan.projectId === item.id) }))
+        .filter(group => group.plans.length > 0);
 }

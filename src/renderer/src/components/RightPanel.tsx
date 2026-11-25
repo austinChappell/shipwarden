@@ -169,6 +169,7 @@ export function RightPanel(props: Props) {
                     onSendToAgent={props.onSendToAgent}
                     onSendChecksToAgent={props.onSendChecksToAgent}
                     onShowChanges={() => select('changes')}
+                    localChanges={git.changes}
                     onOpenInReview={openInReview && status ? pr => openInReview(status.repo, pr) : undefined}
                     renderAutomations={props.renderPrAutomations}
                 />

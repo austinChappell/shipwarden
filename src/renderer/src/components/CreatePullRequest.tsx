@@ -10,6 +10,8 @@ import { MentionTextarea } from './MentionTextarea';
 import { MentionContext, mentionSourceOfRepo } from './mention-context';
 import { Button, Checkbox, Input, RefreshButton, Select } from './ui';
 import { DraftButton } from './DraftButton';
+import { LocalWorkNotice } from './LocalWorkNotice';
+import type { GitChanges } from '@shared/git';
 
 const ICON = { size: 14, strokeWidth: 1.6 };
 
@@ -31,7 +33,9 @@ export function CreatePullRequest({
     target,
     status,
     loading,
-    onRefresh
+    onRefresh,
+    localChanges,
+    onShowChanges
 }: {
     target: RepoTarget;
     status: BranchStatus;
@@ -39,6 +43,10 @@ export function CreatePullRequest({
     loading: boolean;
     /** Loads the status of the branch again. */
     onRefresh(): Promise<void>;
+    /** The local git changes of the worktree. With them, the form warns about work that the remote does not have. */
+    localChanges?: GitChanges;
+    /** Shows the Changes tab of the worktree. */
+    onShowChanges?(): void;
 }) {
     const [title, setTitle] = useState(status.branch);
     const [body, setBody] = useState('');
@@ -86,6 +94,7 @@ export function CreatePullRequest({
                 </p>
                 <RefreshButton size="sm" label="Check for a pull request" refreshing={loading} onRefresh={onRefresh} />
             </div>
+            <LocalWorkNotice changes={localChanges} onShowChanges={onShowChanges} />
             {typeof target === 'string' && (
                 <div className="pr-create-form">
                     {fork && (

@@ -382,7 +382,7 @@ export function AgentsSettings({ settings, onSave }: { settings: AppSettings; on
                 )}
             </SettingsGroup>
             <McpSettingsGroup settings={settings} onSave={save} />
-            <CliSettingsGroup />
+            <CliSettingsGroup settings={settings} onSave={save} />
             <DraftSettingsGroup settings={settings} onSave={save} />
         </>
     );
