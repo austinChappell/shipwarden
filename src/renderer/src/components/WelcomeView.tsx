@@ -69,8 +69,8 @@ const STEP_TEXT: Record<WelcomeStepId, { title: string; lead: string }> = {
         lead: 'Run many coding agents at the same time. Each agent works in its own git worktree, so two agents never change the same files.'
     },
     tools: { title: 'Check your tools', lead: 'ShipWarden needs git and an agent. Pull requests and checks need GitHub access.' },
-    repository: { title: 'Add a repository', lead: 'Add a git repository from your Mac, or clone one from GitHub.' },
-    agent: { title: 'Choose your agent', lead: 'The Agent button starts this agent in a worktree. You can change it later in Settings › Agents.' },
+    repository: { title: 'Add a repository', lead: 'Add a git repository or a folder from your Mac, or clone a repository from GitHub.' },
+    agent: { title: 'Choose your agent', lead: 'ShipWarden starts this agent in your worktrees. You can change it later in Settings › Agents.' },
     optional: { title: 'Make it yours', lead: 'These settings are optional. You can change them now, or later in Settings.' },
     start: { title: 'Start your first agent', lead: 'Create a worktree for a new branch. ShipWarden starts your agent in it.' }
 };
@@ -241,9 +241,9 @@ export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpen
                 return (
                     <dl className="welcome-terms welcome-panel">
                         <dt>Project</dt>
-                        <dd>A named list of repositories. The sidebar shows the repositories of the active project.</dd>
+                        <dd>A named list of repositories and folders. The sidebar shows the repositories of the active project.</dd>
                         <dt>Repository</dt>
-                        <dd>A git repository on your Mac.</dd>
+                        <dd>A git repository on your Mac. A folder without git also works, but it has no worktrees or branches.</dd>
                         <dt>Worktree</dt>
                         <dd>A separate folder of a repository, with its own branch. Each agent works in a worktree.</dd>
                     </dl>
@@ -316,7 +316,7 @@ export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpen
                             <button className="welcome-choice" onClick={onAddRepo}>
                                 <FolderPlus size={22} strokeWidth={1.5} aria-hidden="true" />
                                 <span className="welcome-choice-title">Add a repository</span>
-                                <span className="welcome-choice-text">Select a folder on your Mac.</span>
+                                <span className="welcome-choice-text">Select a repository or a folder on your Mac.</span>
                             </button>
                             <button className="welcome-choice" onClick={() => setCloneOpen(true)}>
                                 <FolderDown size={22} strokeWidth={1.5} aria-hidden="true" />
@@ -415,7 +415,7 @@ export function WelcomeView({ settings, mode, repos, projectName, onSave, onOpen
                                     </Button>
                                 </>
                             ) : (
-                                'Help › Show Welcome opens this page again. Help › Take the Tour shows the parts of the app.'
+                                'Help › Show Welcome opens this page again. Help › Take the Tour shows the parts of the app. Help › Keyboard Shortcuts lists the keys.'
                             )}
                         </p>
                     </>

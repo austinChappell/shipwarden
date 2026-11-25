@@ -2,8 +2,8 @@
 
 The iPhone app shows the agents that run in ShipWarden on your Mac. It connects to the Mac over your network.
 
-> **Beta.** The iPhone app is in beta. It is in App Store review now, so it is not in the App Store yet. Until Apple
-> approves it, build it from source with Xcode. See [Build](#build).
+> **Beta.** The iPhone app is in beta. Get it from the [App Store](https://apps.apple.com/us/app/shipwarden/id6832160464). To build it from source, see
+> [Build](#build).
 
 - **Agents.** The agents of all projects. The agents that need you come first. Each agent shows why it does not work,
   for example "Waiting for CI" (the Mac sends the reason). Open an agent to see its terminal screen, answer a question

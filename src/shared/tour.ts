@@ -24,14 +24,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     {
         id: 'sidebar',
         title: 'Projects, repositories and worktrees',
-        body: 'The sidebar shows the repositories of the active project and their worktrees. Each worktree has its own folder and branch. Press ⌘N to create a worktree. Press ⌘B to show or hide the sidebar.',
+        body: 'The sidebar shows the repositories and folders of the active project, and their worktrees. Each worktree has its own folder and branch. Press ⌘N to create a worktree. Press ⌘B to show or hide the sidebar.',
         target: 'sidebar',
         needs: 'sidebar'
     },
     {
         id: 'agent',
         title: 'Start an agent',
-        body: 'The + button starts your default agent or a shell in the selected worktree. A worktree without tabs also shows a button that starts the agent.',
+        body: 'The + button opens a new tab in the selected worktree: one of your agents, a shell, or a browser. A worktree without tabs also shows a button that starts your default agent.',
         target: 'agent',
         needs: 'worktree'
     },
@@ -45,21 +45,21 @@ export const TOUR_STEPS: readonly TourStep[] = [
     {
         id: 'rightPanel',
         title: 'The right panel',
-        body: 'Press ⌘E to show or hide the right panel. It shows the files, the local changes, the pull request, the CI checks and the processes of the worktree.',
+        body: 'Press ⌘E to show or hide the right panel. It shows the files, the local changes, the pull request, the checks, the pipelines, the processes, the checkpoints of the agent turns, and the screenshots of the worktree.',
         target: 'rightPanel',
         needs: 'rightPanel'
     },
     {
         id: 'agents',
         title: 'All your agents',
-        body: 'The Agents view (⌥⌘2) shows all agents and their state. “Needs input” means that the agent waits for you.',
+        body: 'The Agents view (⌥⌘2) shows all agents and their state. “Needs input” means that the agent waits for you. Pin a session to resume it later.',
         target: 'agents',
         needs: 'sidebar'
     },
     {
         id: 'tasks',
         title: 'Tasks',
-        body: 'The Tasks view (⌥⌘3) shows the tasks of your task tracker. “Start in worktree” creates a branch for a task and gives the task to a new agent. Connect a tracker in Settings › Task managers.',
+        body: 'The Tasks view (⌥⌘3) shows the tasks of your task tracker. “Start in worktree” creates a branch for a task and gives the task to a new agent. “Add to queue” runs the tasks one after the other. Connect a tracker in Settings › Task managers.',
         target: 'tasks',
         needs: 'sidebar'
     },
@@ -73,7 +73,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     {
         id: 'quit',
         title: 'Agents continue to run',
-        body: '⌘Q quits ShipWarden, but your agents continue to run. The next start shows them again. ⇧⌥⌘Q quits and stops all agents. Help › Take the Tour shows this tour again.'
+        body: '⌘Q quits ShipWarden, but your agents continue to run. The next start shows them again. ⇧⌥⌘Q quits and stops all agents. Press ⇧⌘P to find any command. Help › Take the Tour shows this tour again.'
     }
 ];
 
