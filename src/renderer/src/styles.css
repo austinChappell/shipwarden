@@ -12521,6 +12521,33 @@ button.pr-summary-cell:hover {
     background: currentColor;
 }
 
+/* The checks bar: one part for each state, as wide as its number of checks. */
+.checks-bar {
+    display: flex;
+    gap: 2px;
+    height: 4px;
+    overflow: hidden;
+    border-radius: 2px;
+}
+
+.checks-bar-part {
+    flex-basis: 0;
+    min-width: 3px;
+}
+
+.checks-bar-part.passed {
+    background: var(--ok);
+}
+.checks-bar-part.failed {
+    background: var(--danger);
+}
+.checks-bar-part.inProgress {
+    background: var(--pending);
+}
+.checks-bar-part.notStarted {
+    background: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+
 .tone-ok {
     color: var(--ok);
 }

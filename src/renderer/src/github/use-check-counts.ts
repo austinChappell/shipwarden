@@ -7,7 +7,12 @@ export interface CheckCounts {
     total: number;
     passed: number;
     failed: number;
+    /** The checks that are not complete: the sum of inProgress and notStarted. */
     running: number;
+    /** The checks that run now. */
+    inProgress: number;
+    /** The checks that wait in the queue and did not start. */
+    notStarted: number;
     /** The newest run of each check that failed. */
     failedChecks: CheckRun[];
 }
@@ -20,7 +25,8 @@ export function countChecks(checks: readonly CheckRun[]): CheckCounts {
     const failedChecks = latest.filter(check => check.status === 'completed' && isFailedConclusion(check.conclusion));
     const failed = failedChecks.length;
     const running = latest.filter(check => check.status !== 'completed').length;
-    return { total: latest.length, passed: latest.length - failed - running, failed, running, failedChecks };
+    const inProgress = latest.filter(check => check.status === 'in_progress').length;
+    return { total: latest.length, passed: latest.length - failed - running, failed, running, inProgress, notStarted: running - inProgress, failedChecks };
 }
 
 /**
