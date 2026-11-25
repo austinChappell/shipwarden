@@ -20,10 +20,13 @@ async function resumeAgent(settings: Services['settings'], agentId?: string): Pr
 
 /** Registers the IPC handlers of the pinned agent sessions, the recent agent sessions, and the transcript search. */
 export function registerPinIpc({ pinnedSessions, recentSessions, transcriptIndex, settings }: PinIpcDependencies): void {
-    ipcMain.handle(IpcChannels.pinsList, () => pinnedSessions.list());
+    ipcMain.handle(IpcChannels.pinsList, () => pinnedSessions.state());
     ipcMain.handle(IpcChannels.pinsPin, (_event, request: PinRequest) => pinnedSessions.pin(request));
     ipcMain.handle(IpcChannels.pinsRename, (_event, id: unknown, name: unknown) => pinnedSessions.rename(String(id), String(name ?? '')));
+    ipcMain.handle(IpcChannels.pinsUnpin, (_event, id: unknown) => pinnedSessions.unpin(String(id)));
+    ipcMain.handle(IpcChannels.pinsRestore, (_event, id: unknown) => pinnedSessions.restore(String(id)));
     ipcMain.handle(IpcChannels.pinsRemove, (_event, id: unknown) => pinnedSessions.remove(String(id)));
+    ipcMain.handle(IpcChannels.pinsSetTags, (_event, sessionId: unknown, tags: unknown) => pinnedSessions.setTags(String(sessionId), tags));
     ipcMain.handle(
         IpcChannels.pinsPrepareResume,
         async (_event, id: unknown, target: { cwd?: unknown; repoPath?: unknown; branch?: unknown }): Promise<ResumePlan> => {

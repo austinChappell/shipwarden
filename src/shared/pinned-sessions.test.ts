@@ -3,12 +3,16 @@ import type { ChatItem } from './agent-chat';
 import {
     claudeProjectFolder,
     cleanSessionName,
+    hasTags,
     normalizePinnedSession,
+    normalizeSessionTags,
+    pinExpired,
     pinOfTranscript,
     resumeCommand,
     sessionIdOf,
     sessionNamePrompt,
     sortPins,
+    tagCounts,
     type PinnedSession
 } from './pinned-sessions';
 
@@ -112,5 +116,45 @@ describe('sortPins and pinOfTranscript', () => {
     it('finds the pin of a transcript in another folder by the session ID', () => {
         expect(pinOfTranscript([pin()], `/h/.claude/projects/-other/${ID}.jsonl`)?.id).toBe('p1');
         expect(pinOfTranscript([pin()], undefined)).toBeUndefined();
+    });
+});
+
+describe('pinExpired', () => {
+    const day = 24 * 60 * 60 * 1000;
+    it('expires an unpinned session after 3 days, and never a pin', () => {
+        expect(pinExpired(pin(), 1000 * day)).toBe(false);
+        expect(pinExpired(pin({ unpinnedAt: day }), 4 * day)).toBe(false);
+        expect(pinExpired(pin({ unpinnedAt: day }), 4 * day + 1)).toBe(true);
+    });
+
+    it('keeps the unpin time of a stored pin', () => {
+        expect(normalizePinnedSession({ ...pin(), unpinnedAt: 500 })?.unpinnedAt).toBe(500);
+    });
+});
+
+describe('session tags', () => {
+    const other = '2d0c58dd-b22e-4f5a-b1e8-89601c301585';
+
+    it('drops the sessions that are not valid and the empty tag lists', () => {
+        expect(normalizeSessionTags({ [ID]: ['a', 'A', ''], [other]: [], 'bad id': ['x'] })).toEqual({ [ID]: ['a'] });
+        expect(normalizeSessionTags(['a'])).toEqual({});
+    });
+
+    it('counts the tags of the listed sessions only', () => {
+        const tags = { [ID]: ['bug', 'api'], [other]: ['bug'] };
+        expect(tagCounts(tags, [ID, other, ID])).toEqual([
+            ['api', 1],
+            ['bug', 2]
+        ]);
+        expect(tagCounts(tags, [other])).toEqual([['bug', 1]]);
+    });
+
+    it('matches a session that has each tag of the filter', () => {
+        const tags = { [ID]: ['Bug', 'api'] };
+        expect(hasTags(tags, ID, [])).toBe(true);
+        expect(hasTags(tags, ID, ['bug'])).toBe(true);
+        expect(hasTags(tags, ID, ['bug', 'docs'])).toBe(false);
+        expect(hasTags(tags, other, [])).toBe(true);
+        expect(hasTags(tags, other, ['bug'])).toBe(false);
     });
 });
