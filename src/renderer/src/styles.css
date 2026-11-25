@@ -15469,6 +15469,15 @@ button.pr-summary-cell:hover {
     line-height: 1.45;
 }
 
+.plan-project-field {
+    margin-bottom: 14px;
+}
+
+.plan-project-picker.combobox {
+    width: 260px;
+    max-width: 100%;
+}
+
 .plan-idea-card .flow-label + .plan-idea-note {
     margin: 0 0 8px;
 }

@@ -58,6 +58,7 @@ export function PlansView({ project, projects, repoLabel, repoColor, route, onRo
                         key={open.id}
                         plan={open}
                         project={openProject}
+                        projects={projects}
                         repoLabel={repoLabel}
                         repoColor={repoColor}
                         onOpenWorktree={onOpenWorktree}
