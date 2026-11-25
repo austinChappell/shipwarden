@@ -15,7 +15,7 @@ import type { CliPageRequest } from '@shared/cli';
 import type { Task } from '@shared/tasks';
 import type { Plan } from '@shared/plans';
 import type { CreateWorktreeProgress } from '@shared/worktrees';
-import type { PinnedSession } from '@shared/pinned-sessions';
+import type { PinState } from '@shared/pinned-sessions';
 import type { ScreenshotProgress } from '@shared/screenshots';
 import type { KeybindingsState } from '@shared/keybindings';
 import type { DictationUpdate } from '@shared/dictation';
@@ -227,9 +227,12 @@ const api: ShipWardenApi = {
         list: () => ipcRenderer.invoke(IpcChannels.pinsList),
         pin: request => ipcRenderer.invoke(IpcChannels.pinsPin, request),
         rename: (id, name) => ipcRenderer.invoke(IpcChannels.pinsRename, id, name),
+        unpin: id => ipcRenderer.invoke(IpcChannels.pinsUnpin, id),
+        restore: id => ipcRenderer.invoke(IpcChannels.pinsRestore, id),
         remove: id => ipcRenderer.invoke(IpcChannels.pinsRemove, id),
+        setTags: (sessionId, tags) => ipcRenderer.invoke(IpcChannels.pinsSetTags, sessionId, tags),
         prepareResume: (id, target) => ipcRenderer.invoke(IpcChannels.pinsPrepareResume, id, target),
-        onChanged: listener => subscribe<[PinnedSession[]]>(IpcChannels.pinsChanged, listener)
+        onChanged: listener => subscribe<[PinState]>(IpcChannels.pinsChanged, listener)
     },
     recentSessions: {
         list: () => ipcRenderer.invoke(IpcChannels.recentSessionsList),

@@ -6305,6 +6305,44 @@ button:focus-visible,
     max-width: 360px;
 }
 
+/* The tags of a session row, below its first line. The left padding aligns them with the name. */
+.pinned-row .pinned-tags {
+    margin: -5px 0 0;
+    padding: 0 14px 11px 39px;
+}
+
+/* The recently unpinned sessions (UnpinnedSessions in PinnedSessions.tsx). The heading opens and closes the list. */
+.unpinned-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+.unpinned-toggle .group-chevron {
+    flex: none;
+    color: var(--muted);
+}
+
+/* The tag filter of the session lists, above the pinned sessions. */
+.sessions-tag-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    max-width: 980px;
+    margin: 26px 0 12px;
+}
+
+.sessions-tag-filter:first-child {
+    margin-top: 0;
+}
+
 /* The recent sessions (RecentSessions in PinnedSessions.tsx), below the pinned sessions. They use the rows of the pins. */
 .recent-sessions-scope {
     color: var(--muted);
@@ -9108,7 +9146,7 @@ button:focus-visible,
     color: var(--warning);
 }
 
-.note-tags {
+.tag-list {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -9116,7 +9154,7 @@ button:focus-visible,
     margin-top: 6px;
 }
 
-.note-tag button {
+.tag-chip button {
     display: grid;
     place-items: center;
     margin-right: -4px;
@@ -9128,12 +9166,12 @@ button:focus-visible,
     cursor: pointer;
 }
 
-.note-tag button:hover {
+.tag-chip button:hover {
     background: var(--hover);
 }
 
-/* A tag filter of the note list: a 24 px toggle with the count badge. */
-.note-tag-filter {
+/* A tag filter toggle: a 24 px toggle with the count badge. */
+.tag-filter-toggle {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -9149,11 +9187,11 @@ button:focus-visible,
     cursor: pointer;
 }
 
-.note-tag-filter:hover {
+.tag-filter-toggle:hover {
     color: var(--text);
 }
 
-.note-tag-filter.on {
+.tag-filter-toggle.on {
     background: var(--tone-info-bg);
     color: var(--tone-info-text);
 }
@@ -9162,7 +9200,7 @@ button:focus-visible,
     position: relative;
 }
 
-.note-tag-add {
+.tag-add {
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -9179,8 +9217,8 @@ button:focus-visible,
     cursor: pointer;
 }
 
-.note-tag-add:hover,
-.note-tag-add.on {
+.tag-add:hover,
+.tag-add.on {
     border-style: solid;
     border-color: var(--accent);
     color: var(--accent);

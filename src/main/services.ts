@@ -629,7 +629,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
      */
     pinnedSessions = new PinnedSessions({
         file: join(userData, 'pinned-sessions.json'),
-        onChanged: pins => window.send(IpcChannels.pinsChanged, pins),
+        onChanged: state => window.send(IpcChannels.pinsChanged, state),
         ask: async (pin, prompt) => {
             await shellReady;
             const { agents } = await settings.get();
@@ -650,6 +650,9 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
             });
         }
     });
+    // A pinned session can continue outside ShipWarden. The backups of the pinned transcripts update at the start and each hour.
+    void pinnedSessions.backupAll();
+    setInterval(() => void pinnedSessions.backupAll(), 60 * 60_000).unref();
     const confirm = new ConfirmDialogs(() => window.get());
 
     /**

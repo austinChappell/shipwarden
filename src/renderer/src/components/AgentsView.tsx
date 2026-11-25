@@ -37,10 +37,11 @@ import { TranscriptSearch } from './TranscriptSearch';
 import { OverlapChip } from './OverlapChip';
 import { useOverlaps } from '../git/overlap-query';
 import { overlapChipText } from '@shared/worktree-overlap';
-import { sessionIdOf, type PinnedSession } from '@shared/pinned-sessions';
+import { hasTags, sessionIdOf, tagCounts, type PinnedSession } from '@shared/pinned-sessions';
 import { type RecentSession, visibleRecentSessions } from '@shared/recent-sessions';
-import { PinnedSessions, RecentSessions, type ResumePlace } from './PinnedSessions';
-import { canPin, pinOfSession, pinSession, usePinnedSessions } from '../terminal/pinned-sessions';
+import { PinnedSessions, RecentSessions, UnpinnedSessions, type ResumePlace } from './PinnedSessions';
+import { TagFilter } from './TagEditor';
+import { canPin, pinOfSession, pinSession, usePinnedSessions, useSessionTags, useUnpinnedSessions } from '../terminal/pinned-sessions';
 import { useRecentSessions } from '../terminal/recent-sessions';
 import { showToast } from './Toast';
 
@@ -150,7 +151,11 @@ export function AgentsView({
     onStop
 }: Props) {
     const pins = usePinnedSessions();
+    const unpinned = useUnpinnedSessions();
+    const sessionTags = useSessionTags();
     const recentSessions = useRecentSessions();
+    /** The tags that the session lists must have. */
+    const [tagFilter, setTagFilter] = useState<string[]>([]);
     /** The text of the transcript search. While it has text, the view shows the search results. */
     const [searchText, setSearchText] = useState('');
     const searching = searchText.trim().length > 0;
@@ -159,9 +164,9 @@ export function AgentsView({
     const [now, setNow] = useState(Date.now());
 
     const agents = useMemo(() => sessions.filter(runsAgent), [sessions]);
-    // A pinned session or a running session shows in its own list, so the recent list leaves it out.
+    // A pinned, unpinned, or running session shows in its own list, so the recent list leaves it out.
     const recent = useMemo(() => {
-        const pinned = new Set(pins.map(pin => pin.sessionId));
+        const pinned = new Set([...pins, ...unpinned].map(pin => pin.sessionId));
         const running = new Set(
             sessions.flatMap(session => {
                 const id = !session.exited && session.agentTranscript ? sessionIdOf(session.agentTranscript) : undefined;
@@ -169,7 +174,21 @@ export function AgentsView({
             })
         );
         return visibleRecentSessions(recentSessions, pinned, running);
-    }, [recentSessions, pins, sessions]);
+    }, [recentSessions, pins, unpinned, sessions]);
+    // The tags of the sessions in the three lists, with their counts. A tag of a session that is in no list does not show.
+    const filterTags = useMemo(
+        () =>
+            tagCounts(
+                sessionTags,
+                [...pins, ...unpinned, ...recent].map(item => item.sessionId)
+            ),
+        [sessionTags, pins, unpinned, recent]
+    );
+    // A tag that no listed session has any more leaves the filter.
+    const activeFilter = useMemo(() => tagFilter.filter(tag => filterTags.some(([name]) => name === tag)), [tagFilter, filterTags]);
+    const toggleTag = (tag: string) => setTagFilter(list => (list.includes(tag) ? list.filter(item => item !== tag) : [...list, tag]));
+    const allTags = useMemo(() => filterTags.map(([tag]) => tag), [filterTags]);
+    const tagged = <T extends { sessionId: string }>(list: T[]) => list.filter(item => hasTags(sessionTags, item.sessionId, activeFilter));
     const tokensByTranscript = useAgentTokens(agents);
     const allRepos = useMemo(() => [...new Set((projects?.projects ?? []).flatMap(project => project.repos))], [projects]);
 
@@ -420,7 +439,7 @@ export function AgentsView({
                     />
                 )}
                 {!searching && agents.length > 0 && <InlineTip id="agents" />}
-                {!searching && agents.length === 0 && pins.length === 0 && recent.length === 0 && (
+                {!searching && agents.length === 0 && pins.length === 0 && unpinned.length === 0 && recent.length === 0 && (
                     <EmptyState
                         icon={Bot}
                         title="No agents running"
@@ -580,14 +599,34 @@ export function AgentsView({
                 })}
                 {!searching && (
                     <>
-                        <PinnedSessions pins={pins} places={places} selectedPath={selectedPath} repoLabel={repoLabel} onResume={onResume} />
+                        <TagFilter className="sessions-tag-filter" tags={filterTags} selected={activeFilter} onToggle={toggleTag} noun="session" />
+                        <PinnedSessions
+                            pins={tagged(pins)}
+                            places={places}
+                            selectedPath={selectedPath}
+                            repoLabel={repoLabel}
+                            onResume={onResume}
+                            tags={sessionTags}
+                            allTags={allTags}
+                        />
+                        <UnpinnedSessions
+                            pins={tagged(unpinned)}
+                            places={places}
+                            selectedPath={selectedPath}
+                            repoLabel={repoLabel}
+                            onResume={onResume}
+                            tags={sessionTags}
+                            allTags={allTags}
+                        />
                         <RecentSessions
-                            sessions={recent}
+                            sessions={tagged(recent)}
                             places={places}
                             selectedPath={selectedPath}
                             repoLabel={repoLabel}
                             onResume={onResumeRecent}
                             onPin={pinRecent}
+                            tags={sessionTags}
+                            allTags={allTags}
                         />
                     </>
                 )}

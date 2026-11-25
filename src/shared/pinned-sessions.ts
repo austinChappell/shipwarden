@@ -1,5 +1,6 @@
 import type { ChatItem } from './agent-chat';
 import { oneLine, shellQuote } from './agents';
+import { normalizeTags } from './notes';
 
 /**
  * A Claude Code session that the user pinned to resume later. The pin keeps the transcript of the session. The user can
@@ -27,6 +28,21 @@ export interface PinnedSession {
     pinnedAt: number;
     /** The time of the last resume. */
     resumedAt?: number;
+    /**
+     * The time of the unpin. An unpinned session stays in "Recently unpinned" for UNPINNED_KEEP_DAYS days. Then
+     * ShipWarden removes it. A pin without this time stays until the user unpins it.
+     */
+    unpinnedAt?: number;
+}
+
+/** The tags of the sessions, by the session ID. A session with or without a pin can have tags. */
+export type SessionTags = Record<string, string[]>;
+
+/** The pins and the tags of the sessions, as the main process keeps them. */
+export interface PinState {
+    /** The pins and the recently unpinned sessions, the newest pin or resume first. */
+    pins: PinnedSession[];
+    tags: SessionTags;
 }
 
 /** The data of a new pin, from the page. */
@@ -50,6 +66,14 @@ export interface ResumePlan {
 
 /** The most pins that ShipWarden keeps. A new pin removes the oldest pin after this number. */
 export const MAX_PINNED_SESSIONS = 200;
+
+/** The number of days that an unpinned session stays in "Recently unpinned". */
+export const UNPINNED_KEEP_DAYS = 3;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The most sessions with tags that ShipWarden keeps. After this number, it removes the tags of old sessions without a pin. */
+export const MAX_TAGGED_SESSIONS = 1000;
 
 /** The longest name of a session. */
 export const MAX_SESSION_NAME = 60;
@@ -168,6 +192,7 @@ export function normalizePinnedSession(value: unknown): PinnedSession | undefine
     const pinnedAt = time(entry.pinnedAt);
     if (!id || !transcript || !sessionId || !SESSION_ID.test(sessionId) || !cwd || !pinnedAt) return undefined;
     const resumedAt = time(entry.resumedAt);
+    const unpinnedAt = time(entry.unpinnedAt);
     return {
         id,
         sessionId,
@@ -179,8 +204,43 @@ export function normalizePinnedSession(value: unknown): PinnedSession | undefine
         ...(text(entry.branch) ? { branch: text(entry.branch) } : {}),
         ...(text(entry.agentId) ? { agentId: text(entry.agentId) } : {}),
         pinnedAt,
-        ...(resumedAt ? { resumedAt } : {})
+        ...(resumedAt ? { resumedAt } : {}),
+        ...(unpinnedAt ? { unpinnedAt } : {})
     };
+}
+
+/** Returns true when an unpinned session is older than UNPINNED_KEEP_DAYS days. A pin never expires. */
+export function pinExpired(pin: PinnedSession, now: number): boolean {
+    return pin.unpinnedAt !== undefined && now - pin.unpinnedAt > UNPINNED_KEEP_DAYS * DAY_MS;
+}
+
+/** Returns valid session tags from stored data. A session without tags has no entry. */
+export function normalizeSessionTags(value: unknown): SessionTags {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    const result: SessionTags = {};
+    for (const [sessionId, tags] of Object.entries(value as Record<string, unknown>)) {
+        const clean = normalizeTags(tags);
+        if (SESSION_ID.test(sessionId) && clean.length > 0) result[sessionId] = clean;
+    }
+    return result;
+}
+
+/**
+ * Returns all tags with the number of sessions that have each tag, in alphabetical order. Only the sessions in
+ * `sessionIds` count.
+ */
+export function tagCounts(tags: SessionTags, sessionIds: Iterable<string>): [string, number][] {
+    const counts = new Map<string, number>();
+    for (const id of new Set(sessionIds)) {
+        for (const tag of tags[id] ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { sensitivity: 'base' }));
+}
+
+/** Returns true when the session has each tag of the filter. An empty filter matches each session. */
+export function hasTags(tags: SessionTags, sessionId: string, filter: readonly string[]): boolean {
+    const own = (tags[sessionId] ?? []).map(tag => tag.toLowerCase());
+    return filter.every(tag => own.includes(tag.toLowerCase()));
 }
 
 /** Sorts the pins: the newest pin or resume first. */

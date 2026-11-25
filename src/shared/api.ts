@@ -61,7 +61,7 @@ import type { QueueState } from './task-queue';
 import type { StatsCiChange, StatsEvent, StatsStart } from './stats';
 import type { Checkpoint, RewindOptions, RewindPreview, RewindResult } from './checkpoints';
 import type { ScreenshotProgress, ScreenshotSide, ScreenshotState } from './screenshots';
-import type { PinnedSession, PinRequest, ResumePlan } from './pinned-sessions';
+import type { PinnedSession, PinRequest, PinState, ResumePlan } from './pinned-sessions';
 import type { RecentSession } from './recent-sessions';
 import type { TranscriptSearchQuery, TranscriptSearchResult } from './transcript-search';
 import type { WorktreeFiles } from './worktree-overlap';
@@ -498,20 +498,27 @@ export interface ShipWardenApi {
         cancelReview(id: string): Promise<void>;
     };
     pins: {
-        /** The pinned Claude Code sessions, the newest pin or resume first. */
-        list(): Promise<PinnedSession[]>;
+        /** The pinned and recently unpinned Claude Code sessions, the newest pin or resume first, and the tags of the sessions. */
+        list(): Promise<PinState>;
         /** Pins a session. An agent gives it a name after the pin. A session with a pin keeps its pin. */
         pin(request: PinRequest): Promise<PinnedSession>;
         /** Gives a pin the name of the user. */
         rename(id: string, name: string): Promise<PinnedSession>;
+        /** Unpins a session. It stays in "Recently unpinned" for a few days, with its name and its tags. */
+        unpin(id: string): Promise<PinnedSession>;
+        /** Pins a recently unpinned session again. */
+        restore(id: string): Promise<PinnedSession>;
+        /** Removes a pin or an unpinned session now. */
         remove(id: string): Promise<void>;
+        /** Gives a session its tags, with or without a pin. Returns the clean tags. */
+        setTags(sessionId: string, tags: string[]): Promise<string[]>;
         /**
          * Makes the session available in a folder and returns the command that resumes it. A folder other than the
          * folder of the session gets a copy of the transcript.
          */
         prepareResume(id: string, target: { cwd: string; repoPath?: string; branch?: string }): Promise<ResumePlan>;
-        /** The new list after each change, also after the agent gives a name. */
-        onChanged(listener: (pins: PinnedSession[]) => void): () => void;
+        /** The new pins and tags after each change, also after the agent gives a name. */
+        onChanged(listener: (state: PinState) => void): () => void;
     };
     recentSessions: {
         /** The interactive Claude Code sessions of the last 3 days, the newest first. The list includes pinned sessions. */
@@ -1063,7 +1070,10 @@ export const IpcChannels = {
     pinsList: 'pins:list',
     pinsPin: 'pins:pin',
     pinsRename: 'pins:rename',
+    pinsUnpin: 'pins:unpin',
+    pinsRestore: 'pins:restore',
     pinsRemove: 'pins:remove',
+    pinsSetTags: 'pins:setTags',
     pinsPrepareResume: 'pins:prepareResume',
     pinsChanged: 'pins:changed',
     recentSessionsList: 'recentSessions:list',
