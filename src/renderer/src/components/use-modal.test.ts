@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { modalOpen, wrapTarget } from './use-modal';
+import { modalOpen, restoreFocus, wrapTarget } from './use-modal';
 
 describe('wrapTarget', () => {
     const items = ['a', 'b', 'c'];
@@ -27,5 +27,26 @@ describe('wrapTarget', () => {
 describe('modalOpen', () => {
     it('is false when no modal shows', () => {
         expect(modalOpen()).toBe(false);
+    });
+});
+
+describe('restoreFocus', () => {
+    const body = { contains: () => false } as unknown as Element;
+    const inside = {} as Element;
+    const outside = {} as Element;
+    const dialog = { contains: (node: Element) => node === inside } as unknown as Element;
+
+    it('restores the focus when no element has it', () => {
+        expect(restoreFocus(null, body, dialog)).toBe(true);
+        expect(restoreFocus(body, body, dialog)).toBe(true);
+    });
+
+    it('restores the focus when the dialog has it', () => {
+        expect(restoreFocus(inside, body, dialog)).toBe(true);
+    });
+
+    it('keeps the focus on an element out of the dialog', () => {
+        expect(restoreFocus(outside, body, dialog)).toBe(false);
+        expect(restoreFocus(outside, body, null)).toBe(false);
     });
 });
