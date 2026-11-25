@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dispatchInputs } from '@shared/pipelines';
-import { parseWorkflowFile } from './workflow-file';
+import { parseWorkflowFile, parseWorkflowJobs } from './workflow-file';
 
 describe('parseWorkflowFile', () => {
     it('reads the inputs of a workflow_dispatch trigger', () => {
@@ -59,5 +59,39 @@ describe('dispatchInputs', () => {
 
     it('refuses an empty required input', () => {
         expect(dispatchInputs(inputs, { ticket: '  ' })).toEqual({ error: 'The input "ticket" needs a value.' });
+    });
+});
+
+describe('parseWorkflowJobs', () => {
+    it('reads the names, needs, matrices and reusable workflows of the jobs', () => {
+        const text = `
+on: pull_request
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+  lint:
+    name: Lint code
+    needs: setup
+  test:
+    needs: [setup, lint]
+    strategy:
+      matrix:
+        node: [20, 22]
+  deploy:
+    needs: test
+    uses: ./.github/workflows/deploy.yml
+`;
+        expect(parseWorkflowJobs(text)).toEqual([
+            { id: 'setup', needs: [], matrix: false, reusable: false },
+            { id: 'lint', name: 'Lint code', needs: ['setup'], matrix: false, reusable: false },
+            { id: 'test', needs: ['setup', 'lint'], matrix: true, reusable: false },
+            { id: 'deploy', needs: ['test'], matrix: false, reusable: true }
+        ]);
+    });
+
+    it('returns null for a file that is not valid YAML or has no jobs', () => {
+        expect(parseWorkflowJobs('jobs: [')).toBeNull();
+        expect(parseWorkflowJobs('on: push')).toBeNull();
+        expect(parseWorkflowJobs('jobs: {}')).toBeNull();
     });
 });

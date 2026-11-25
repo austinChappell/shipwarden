@@ -23,6 +23,8 @@ import { formatAgo } from '@shared/format';
 import { errorText, formatDuration, optionalErrorText } from '../util';
 import { CheckIcon } from './ChecksPanel';
 import { LogView } from './LogView';
+import { GraphToggle, useGraphShown, WorkflowGraph } from './WorkflowGraph';
+import { buildWorkflowGraph } from '@shared/workflow-graph';
 import { Age, Button, Chip, type ChipTone, Combobox, IconButton, Input, PageHeader, RefreshButton, Select, SkeletonRows, Switch } from './ui';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { confirmDialog } from './ConfirmDialog';
@@ -32,7 +34,17 @@ import { moveListFocus } from '../keyboard/list-nav';
 import { repoGroups } from '../github/repo-choices';
 import { useDashboard } from '../dashboard-store';
 import { useApprovePipeline } from '../github/pipeline-approval';
-import { branchesQuery, ciActions, repositoriesQuery, runJobsQuery, sortWorkflows, useCiAction, workflowRunsQuery, workflowsQuery } from '../github/ci-queries';
+import {
+    branchesQuery,
+    ciActions,
+    repositoriesQuery,
+    runJobsQuery,
+    sortWorkflows,
+    useCiAction,
+    workflowJobsQuery,
+    workflowRunsQuery,
+    workflowsQuery
+} from '../github/ci-queries';
 
 const REPO_KEY = 'shipwarden.pipelinesRepo';
 /** The runs and the jobs refresh at this interval while a run or a job waits or runs. */
@@ -288,6 +300,16 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
     const jobsQuery = useQuery(runJobsQuery(repoRef, runId, !!selectedRun && runIsActive(selectedRun), ACTIVE_POLL_MS));
     const jobs = runId === undefined ? undefined : jobsQuery.data;
     const job: CheckRun | undefined = jobs?.find(item => item.id === jobId);
+
+    // The graph of the selected run. It needs the workflow file of the run, so only GitHub runs have a graph.
+    const graphShown = useGraphShown();
+    const hasGraph = !!selectedRun?.path;
+    const specsQuery = useQuery({
+        ...workflowJobsQuery(repoRef, selectedRun?.path, selectedRun?.headSha),
+        enabled: graphShown && hasGraph && !!repoRef
+    });
+    const specs = hasGraph ? specsQuery.data : undefined;
+    const graph = useMemo(() => (specs && jobs?.length ? buildWorkflowGraph(specs, jobs) : undefined), [specs, jobs]);
 
     const action = useCiAction();
     // The runs that wait for the approval of the user. The Dashboard loads them for the whole app.
@@ -556,6 +578,17 @@ export function PipelinesView({ reviewKey, onOpenSettings, route, onRoute }: Pro
                                 {actionError && <div className="form-error">{actionError}</div>}
                                 {approval.error && <div className="form-error">{errorText(approval.error)}</div>}
                             </div>
+                            {hasGraph && (
+                                <div className="pipeline-jobs-bar">
+                                    <span className="section-title">Jobs</span>
+                                    <GraphToggle />
+                                </div>
+                            )}
+                            {graphShown && graph && (
+                                <div className="pipeline-graph" onKeyDown={moveListFocus}>
+                                    <WorkflowGraph graph={graph} selectedJobId={job?.id} onSelectJob={item => setQuery({ job: item.id.toString() })} />
+                                </div>
+                            )}
                             <div className="pipeline-jobs" onKeyDown={moveListFocus}>
                                 {!jobs && <SkeletonRows count={3} label="Loading jobs" />}
                                 {jobs?.length === 0 && <div className="panel-note">No jobs yet.</div>}

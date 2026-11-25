@@ -9577,6 +9577,156 @@ body.resizing-column * {
     background: var(--selected);
 }
 
+/* The title and the Graph / List switch above the jobs of a run. */
+.pipeline-jobs-bar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 16px 0;
+}
+
+.pipeline-jobs-bar .section-title {
+    width: auto;
+    padding: 0;
+}
+
+/* The graph scrolls in both directions. It takes up to half of the pane, so the log stays in view. */
+.pipeline-graph {
+    flex: none;
+    max-height: 50%;
+    overflow: auto;
+    border-bottom: 1px solid var(--border);
+}
+
+/* Workflow graph */
+.wg-canvas {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 56px;
+    width: max-content;
+    min-width: 100%;
+    padding: 16px;
+}
+
+.wg-edges {
+    position: absolute;
+    inset: 0 auto auto 0;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.wg-edges path {
+    fill: none;
+    stroke: var(--control-border);
+    stroke-width: 1.5;
+}
+
+.wg-edges circle {
+    fill: var(--muted);
+}
+
+.wg-column {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.wg-stack {
+    width: 272px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    background: var(--card);
+}
+
+.wg-job,
+.wg-group-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 32px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: var(--control-radius);
+    background: transparent;
+    color: var(--text-strong);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+}
+
+button.wg-job {
+    cursor: pointer;
+}
+
+button.wg-job:hover {
+    background: var(--hover);
+}
+
+.wg-job.selected {
+    background: var(--selected);
+}
+
+.wg-job.waiting {
+    color: var(--muted);
+}
+
+.wg-job .check-icon,
+.wg-group-head .check-icon {
+    flex: none;
+}
+
+.wg-job-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wg-job-time {
+    flex: none;
+    color: var(--muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.wg-group-label {
+    padding: 4px 8px 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.wg-group-toggle {
+    display: block;
+    margin: 0 0 4px 31px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.wg-group-toggle:hover {
+    color: var(--text-strong);
+}
+
+.wg-group + .wg-group,
+.wg-group + .wg-job,
+.wg-job + .wg-group {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid var(--border);
+}
+
 /* The log view fills its nearest positioned parent. The empty state fills the flex column. */
 .pipeline-log {
     position: relative;
@@ -17919,4 +18069,89 @@ body.resizing-rows * {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
+}
+
+/* The Graph button of the Checks panel. It goes to the right end of the button row. */
+.checks-graph-toggle {
+    margin-left: auto;
+}
+
+/* The job graphs above the check list of the Checks panel. */
+.checks-graphs {
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+}
+
+/* The graph of one workflow run: the name of its workflow, its trigger, and the graph. */
+.run-graph + .run-graph {
+    border-top: 1px solid var(--border);
+}
+
+.run-graph-title {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 10px 16px 0;
+    min-width: 0;
+}
+
+.run-graph-name {
+    overflow: hidden;
+    color: var(--text-strong);
+    font-size: 13px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.run-graph-event {
+    flex: none;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/* The vertical layout of the workflow graph, for a narrow pane: the steps go from top to bottom. */
+.wg-canvas.vertical {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 32px;
+    width: 100%;
+    min-width: 0;
+}
+
+.wg-canvas.vertical .wg-stack {
+    width: auto;
+    max-width: 480px;
+}
+
+.wg-canvas.vertical .wg-column {
+    gap: 8px;
+}
+
+/* The Checks tab of a pull request: the job graphs across the full width, and the check list and the log below them. */
+.pr-checks {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.pr-checks-graphs {
+    flex: none;
+    max-height: 45%;
+    overflow: auto;
+    border-bottom: 1px solid var(--border);
+}
+
+.pr-checks-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+
+/* A run without a graph shows nothing, so an empty strip must not show its border. */
+.checks-graphs:empty,
+.pr-checks-graphs:empty {
+    display: none;
 }

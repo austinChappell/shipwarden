@@ -274,6 +274,7 @@ export function mapWorkflowRun(run: RestWorkflowRun): WorkflowRun {
         updatedAt: run.updated_at,
         startedAt: run.run_started_at ?? null,
         url: run.html_url,
-        headSha: run.head_sha
+        headSha: run.head_sha,
+        ...(run.path ? { path: run.path } : {})
     };
 }

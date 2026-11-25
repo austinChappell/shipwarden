@@ -23,6 +23,7 @@ import type {
     Workflow
 } from '@shared/github';
 import type { WorkflowRun } from '@shared/pipelines';
+import type { WorkflowJobSpec } from '@shared/workflow-graph';
 import { GitHubError } from './github/github-client';
 import type { GitHubService } from './github/github-service';
 import type { UploadFile } from './screenshots/screenshot-upload';
@@ -74,6 +75,13 @@ export interface SourceHost {
     dispatchWorkflow(target: RepoTarget, workflowId: number, ref: string, inputs?: Record<string, string>): Promise<void>;
     workflowRuns(target: RepoTarget, workflowId?: number): Promise<WorkflowRun[]>;
     runJobs(target: RepoTarget, runId: number): Promise<CheckRun[]>;
+    /**
+     * Returns the jobs of a workflow file at a commit, with their needs, for the graph of a run. Only a host with
+     * workflow files has this method. Returns null when the file is not found.
+     */
+    workflowJobs?(target: RepoTarget, path: string, sha: string): Promise<WorkflowJobSpec[] | null>;
+    /** Returns one workflow run, for the graph of the checks of a commit. Only a host with workflow files has this method. */
+    workflowRun?(target: RepoTarget, runId: number): Promise<WorkflowRun>;
     cancelRun(target: RepoTarget, runId: number): Promise<void>;
     rerunRun(target: RepoTarget, runId: number): Promise<void>;
     branches(target: RepoTarget): Promise<string[]>;
@@ -185,6 +193,12 @@ export class GitHubHost implements SourceHost {
     }
     async runJobs(target: RepoTarget, runId: number) {
         return this.github.runJobs(await this.repoOf(target), runId);
+    }
+    async workflowRun(target: RepoTarget, runId: number) {
+        return this.github.workflowRun(await this.repoOf(target), runId);
+    }
+    async workflowJobs(target: RepoTarget, path: string, sha: string) {
+        return this.github.workflowJobs(await this.repoOf(target), path, sha);
     }
     async cancelRun(target: RepoTarget, runId: number) {
         return this.github.cancelRun(await this.repoOf(target), runId);
