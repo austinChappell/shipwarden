@@ -9,6 +9,7 @@ import { Button, Card, Chip, type ChipTone } from '../components/ui';
 import { openPullRequestUrl } from '../pull-request-links';
 import { errorText } from '../util';
 import { removePlan } from './plan-queries';
+import { PlanTitle } from './PlanTitle';
 
 const WORKER_TONES: Record<StepStatus, ChipTone> = {
     pending: 'pending',
@@ -28,7 +29,7 @@ interface Props {
 
 /**
  * A coordinator run: the workers that an agent started with the MCP tool start_worker. The main process changes the
- * run, so the page shows it and does not edit it.
+ * run. The page changes only the title.
  */
 export function CoordinatorRun({ plan, repoLabel, onOpenWorktree, onClosed }: Props) {
     const [error, setError] = useState<string>();
@@ -57,7 +58,7 @@ export function CoordinatorRun({ plan, repoLabel, onOpenWorktree, onClosed }: Pr
             <header className="flow-header">
                 <div className="flow-header-main">
                     <div className="flow-title-row">
-                        <h2 className="flow-title">{plan.title}</h2>
+                        <PlanTitle plan={plan} onError={setError} />
                         <Chip tone={plan.status === 'running' ? 'pending' : 'success'}>{PLAN_STATUS_LABELS[plan.status]}</Chip>
                     </div>
                     <div className="flow-field-note">

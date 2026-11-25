@@ -54,6 +54,17 @@ function putInCache(plan: Plan): void {
     queryClient.setQueryData<Plan[]>(plansQuery.queryKey, list => [plan, ...(list ?? []).filter(item => item.id !== plan.id)]);
 }
 
+/**
+ * Changes the title of a plan. The main process writes the coordinator runs, so it also changes their title. The other
+ * plans save in order with the other changes of the plan.
+ */
+export async function renamePlan(id: string, title: string): Promise<Plan | undefined> {
+    if (!cachedPlan(id)?.coordinator) return updatePlan(id, current => ({ ...current, title }));
+    const saved = await api.rename(id, title);
+    if (saved) putInCache(saved);
+    return saved;
+}
+
 /** The saves of each plan, in order. A change starts from the result of the change before it. */
 const saving = new Map<string, Promise<unknown>>();
 

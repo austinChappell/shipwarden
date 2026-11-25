@@ -46,6 +46,20 @@ export async function syncPlanGroup(plan: Plan, pullRequests = planPullRequests(
     return createGroup({ ...newGroup(Date.now(), plan.title, pullRequests), planId: plan.id, note: planGroupNote(plan.title, pullRequests) });
 }
 
+/**
+ * Gives the PR group of a plan the new title of the plan. The name and the note change only when ShipWarden wrote them.
+ * A name or a note that the user changed stays.
+ */
+export async function renamePlanGroup(planId: string, before: string, after: string): Promise<void> {
+    const group = (await loadGroups()).find(item => item.planId === planId);
+    if (!group) return;
+    await updateGroup(group.id, current => ({
+        ...current,
+        name: current.name === before ? after : current.name,
+        note: current.note === planGroupNote(before, current.pullRequests) ? planGroupNote(after, current.pullRequests) : current.note
+    }));
+}
+
 /** The PR group of the plan, or undefined. */
 export function usePlanGroup(planId: string): PrGroup | undefined {
     const { groups } = useGroups();

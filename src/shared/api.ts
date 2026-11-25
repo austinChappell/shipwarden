@@ -469,6 +469,8 @@ export interface ShipWardenApi {
         /** Writes a plan and returns the saved copy. */
         save(plan: Plan): Promise<Plan>;
         remove(id: string): Promise<void>;
+        /** Changes only the title of a saved plan. Returns the saved plan, or undefined when no plan has the ID. */
+        rename(id: string, title: string): Promise<Plan | undefined>;
         /** Runs the agent in print mode on all repositories of the project. The agent does not change files. */
         explore(request: PlanExploreRequest): Promise<PlanExploreResult>;
         /** Stops an exploration that runs. */
@@ -1040,6 +1042,7 @@ export const IpcChannels = {
     plansList: 'plans:list',
     plansSave: 'plans:save',
     plansRemove: 'plans:remove',
+    plansRename: 'plans:rename',
     plansExplore: 'plans:explore',
     plansCancelExplore: 'plans:cancelExplore',
     plansChanged: 'plans:changed',

@@ -21,6 +21,12 @@ export function registerPlanIpc(deps: PlanIpcDependencies): void {
     ipcMain.handle(IpcChannels.plansList, () => plans.list());
     ipcMain.handle(IpcChannels.plansSave, (_event, plan: unknown) => plans.save(plan));
     ipcMain.handle(IpcChannels.plansRemove, (_event, id: unknown) => plans.remove(String(id)));
+    // A rename changes only the title in the file. A coordinator run can change its workers at the same time.
+    ipcMain.handle(IpcChannels.plansRename, (_event, id: unknown, title: unknown) => {
+        const text = String(title ?? '').trim();
+        if (!text) throw new Error('The plan title is empty. Write a title.');
+        return plans.change(String(id), plan => (plan ? { ...plan, title: text, updatedAt: Date.now() } : undefined));
+    });
     ipcMain.handle(IpcChannels.plansExplore, (_event, request: unknown) => explore(deps, request));
     ipcMain.handle(IpcChannels.plansCancelExplore, (_event, id: unknown) => askRunner.cancel(`${RUN_PREFIX}${String(id)}`));
 }
