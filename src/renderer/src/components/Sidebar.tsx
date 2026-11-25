@@ -53,6 +53,7 @@ import type { PortOwner } from '@shared/processes';
 import { portList, WorktreePorts } from './WorktreePorts';
 import { onSidebarFocusRequest, takeSidebarFocusRequest } from '../sidebar-focus';
 import { useReorder } from './use-reorder';
+import { useKeyText } from '../keyboard/keymap';
 
 /** The selector of the sidebar items. The Up and Down arrow keys move the focus between them. */
 const SIDEBAR_ITEM = '[data-sidebar-item]';
@@ -706,6 +707,7 @@ export function Sidebar(outerProps: Props) {
     const props: Props = { ...outerProps, sessions };
     const [collapsed, setCollapsed] = useState(readCollapsed);
     const [query, setQuery] = useState('');
+    const keyText = useKeyText();
     const search = query.trim().toLowerCase();
     const reorder = useReorder(props.repos, props.onMoveRepo, !search && props.repos.length > 1);
 
@@ -891,7 +893,12 @@ export function Sidebar(outerProps: Props) {
             </ul>
 
             <div className="sidebar-footer">
-                <button data-sidebar-item className={`nav-row${props.settingsActive ? ' selected' : ''}`} title="Settings (⌘,)" onClick={props.onOpenSettings}>
+                <button
+                    data-sidebar-item
+                    className={`nav-row${props.settingsActive ? ' selected' : ''}`}
+                    title={keyText('Settings (⌘,)')}
+                    onClick={props.onOpenSettings}
+                >
                     <Settings size={15} strokeWidth={1.6} />
                     <span>Settings</span>
                 </button>

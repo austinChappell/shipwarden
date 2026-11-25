@@ -30,7 +30,8 @@ import type { NoteInfo } from '@shared/notes';
 import type { Plan } from '@shared/plans';
 import type { PromptTemplate } from '@shared/prompt-templates';
 import type { OpenPullRequest } from '@shared/review-queue';
-import { APP_KEY_INFO, SHORTCUT_INFO } from '@shared/shortcuts';
+import { keyLabel } from '@shared/shortcuts';
+import { currentKeymap } from '../keyboard/keymap';
 import type { TaskLink } from '@shared/tasks';
 import { THEMES, type Appearance, type ColorScheme, type Mode } from '@shared/themes';
 import { worktreeLabel, type Worktree } from '@shared/worktrees';
@@ -286,7 +287,7 @@ export function paletteItems(context: PaletteContext): PaletteItem[] {
                       group: 'Worktrees',
                       keywords: ['new', 'branch'],
                       icon: GitBranchPlus,
-                      keys: SHORTCUT_INFO.newWorktree.keys[0],
+                      keys: keyLabel(currentKeymap(), 'newWorktree'),
                       run: () => actions.newWorktree(repo)
                   }
                 : {
@@ -331,7 +332,7 @@ export function paletteItems(context: PaletteContext): PaletteItem[] {
         group: 'Review',
         keywords: ['pull requests', 'code review'],
         icon: GitPullRequest,
-        keys: SHORTCUT_INFO.viewReview.keys[0],
+        keys: keyLabel(currentKeymap(), 'viewReview'),
         run: () => actions.enterView('review')
     });
     if (context.reviewAvailable) {
@@ -363,7 +364,7 @@ export function paletteItems(context: PaletteContext): PaletteItem[] {
                 label: 'Open Tasks',
                 group: 'Tasks',
                 icon: ListTodo,
-                keys: SHORTCUT_INFO.viewTasks.keys[0],
+                keys: keyLabel(currentKeymap(), 'viewTasks'),
                 run: () => actions.enterView('tasks')
             },
             {
@@ -425,7 +426,7 @@ export function paletteItems(context: PaletteContext): PaletteItem[] {
             group: 'Scratch Pad',
             keywords: ['notes'],
             icon: FileText,
-            keys: SHORTCUT_INFO.viewNotes.keys[0],
+            keys: keyLabel(currentKeymap(), 'viewNotes'),
             run: () => actions.enterView('notes')
         },
         {
@@ -474,7 +475,7 @@ export function paletteItems(context: PaletteContext): PaletteItem[] {
             label: 'Open Automations',
             group: 'Automations',
             icon: Zap,
-            keys: SHORTCUT_INFO.viewAutomations.keys[0],
+            keys: keyLabel(currentKeymap(), 'viewAutomations'),
             run: () => actions.enterView('automations')
         },
         {
@@ -534,7 +535,7 @@ export function paletteItems(context: PaletteContext): PaletteItem[] {
             label: 'Open the Dashboard',
             group: 'Views',
             icon: LayoutDashboard,
-            keys: SHORTCUT_INFO.viewDashboard.keys[0],
+            keys: keyLabel(currentKeymap(), 'viewDashboard'),
             run: () => actions.enterView('dashboard')
         },
         {
@@ -542,7 +543,7 @@ export function paletteItems(context: PaletteContext): PaletteItem[] {
             label: 'Open Agents',
             group: 'Views',
             icon: Bot,
-            keys: SHORTCUT_INFO.viewAgents.keys[0],
+            keys: keyLabel(currentKeymap(), 'viewAgents'),
             run: () => actions.enterView('agents')
         },
         {
@@ -551,7 +552,7 @@ export function paletteItems(context: PaletteContext): PaletteItem[] {
             group: 'Views',
             keywords: ['ci', 'builds', 'actions'],
             icon: Workflow,
-            keys: SHORTCUT_INFO.viewPipelines.keys[0],
+            keys: keyLabel(currentKeymap(), 'viewPipelines'),
             run: () => actions.enterView('pipelines')
         },
         {
@@ -568,7 +569,7 @@ export function paletteItems(context: PaletteContext): PaletteItem[] {
             group: 'Views',
             keywords: ['window', 'second'],
             icon: PanelsTopLeft,
-            keys: APP_KEY_INFO.newWindow.keys[0],
+            keys: keyLabel(currentKeymap(), 'newWindow'),
             run: () => actions.newWindow()
         }
     );
@@ -581,7 +582,7 @@ export function paletteItems(context: PaletteContext): PaletteItem[] {
             group: 'Settings',
             keywords: ['preferences'],
             icon: Settings,
-            keys: APP_KEY_INFO.settings.keys[0],
+            keys: keyLabel(currentKeymap(), 'settings'),
             run: () => actions.openSettings()
         },
         {
@@ -644,7 +645,7 @@ export function paletteItems(context: PaletteContext): PaletteItem[] {
             group: 'Settings',
             keywords: ['version', 'upgrade'],
             icon: Download,
-            keys: APP_KEY_INFO.checkForUpdates.keys[0],
+            keys: keyLabel(currentKeymap(), 'checkForUpdates'),
             run: () => actions.checkForUpdates()
         },
         ...settingsSectionItems(context, true)

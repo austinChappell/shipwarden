@@ -6,6 +6,7 @@ import {
     GitPullRequest,
     Hash,
     Info,
+    Keyboard,
     LayoutDashboard,
     ListTodo,
     MessageSquareText,
@@ -40,6 +41,7 @@ import { Chip, IconButton, Switch } from './ui';
 import { changeOnboarding } from '@shared/onboarding';
 import { UpdateSettings } from './UpdateNotice';
 import { PromptTemplatesSettings } from '../prompts/PromptTemplatesSettings';
+import { KeyboardSettings } from '../keyboard/KeyboardSettings';
 
 type FixedSection =
     | 'appearance'
@@ -50,6 +52,7 @@ type FixedSection =
     | 'worktrees'
     | 'agents'
     | 'prompts'
+    | 'keyboard'
     | 'terminal'
     | 'network'
     | 'mobile'
@@ -68,6 +71,7 @@ export const SETTINGS_SECTIONS: { id: FixedSection; label: string; icon: LucideI
     { id: 'worktrees', label: 'Worktrees', icon: FolderTree },
     { id: 'agents', label: 'Agents', icon: Bot },
     { id: 'prompts', label: 'Prompt templates', icon: MessageSquareText },
+    { id: 'keyboard', label: 'Keyboard', icon: Keyboard },
     { id: 'terminal', label: 'Terminal', icon: SquareTerminal },
     { id: 'network', label: 'Network', icon: Network },
     { id: 'mobile', label: 'Mobile', icon: Smartphone, badge: 'Beta' },
@@ -295,6 +299,7 @@ export function SettingsView({ settings, mode, terminal, repos, section: section
                         {current.id === 'dashboard' && <DashboardSettings settings={settings} onSave={onSave} prefill={rulePrefill} />}
                         {current.id === 'agents' && <AgentsSettings settings={settings} onSave={onSave} />}
                         {current.id === 'prompts' && <PromptTemplatesSettings terminalKeybinds={terminal?.keybinds ?? []} />}
+                        {current.id === 'keyboard' && <KeyboardSettings terminalKeybinds={terminal?.keybinds ?? []} />}
                         {repoSection && current.id === section && <RepoSettingsPage repo={repoSection} settings={settings} onSave={onSave} />}
                         {status && <div className="form-error">{status}</div>}
                         {current.id === 'terminal' && terminalSection}

@@ -1,4 +1,20 @@
+import {
+    chordId,
+    formatChord,
+    inputMatches,
+    inputOfEvent,
+    keyNamesOf,
+    parseChordSymbols,
+    sameChord,
+    type KeyChord,
+    type KeyEventFields,
+    type KeyInput
+} from './key-chords';
+
 /**
+ * The default keys of ShipWarden. Settings › Keyboard and ~/.shipwarden/keybindings.json can change most of them (see
+ * `KEY_COMMANDS` and `keybindings.ts`). The functions here take the keymap with the keys of the user.
+ *
  * The workspace shortcuts: tabs, splits, the focus between panes and close, as in Ghostty. Also ⌘[ and ⌘] for back and
  * forward, ⌘B for the sidebar, ⇧⌘B for the focus in the sidebar, ⌘E for the right panel, ⌘N for a new worktree and
  * ⇧⌘E for the focus in the file explorer. ⇧⌘F searches the file contents for the selected text.
@@ -47,167 +63,66 @@ export type ShortcutAction =
 /** The actions that open a view of the sidebar (⌥⌘1 to ⌥⌘7). */
 export type ViewAction = 'viewDashboard' | 'viewAgents' | 'viewTasks' | 'viewReview' | 'viewPipelines' | 'viewNotes' | 'viewAutomations';
 
-const FOCUS_KEYS: Record<string, ShortcutAction> = {
-    arrowleft: 'focusLeft',
-    arrowright: 'focusRight',
-    arrowup: 'focusUp',
-    arrowdown: 'focusDown'
-};
-
-/** The views of ⌥⌘ and a digit key, by the code of the key. */
-const VIEW_KEYS: Record<string, ViewAction> = {
-    Digit1: 'viewDashboard',
-    Digit2: 'viewAgents',
-    Digit3: 'viewTasks',
-    Digit4: 'viewReview',
-    Digit5: 'viewPipelines',
-    Digit6: 'viewNotes',
-    Digit7: 'viewAutomations'
-};
-
-/** The tabs of ⌘ and a digit key, by the digit. ⌘9 selects the last tab, as in Ghostty. */
-const TAB_KEYS: Record<string, ShortcutAction> = {
-    1: 'selectTab1',
-    2: 'selectTab2',
-    3: 'selectTab3',
-    4: 'selectTab4',
-    5: 'selectTab5',
-    6: 'selectTab6',
-    7: 'selectTab7',
-    8: 'selectTab8',
-    9: 'selectLastTab'
-};
-
 /**
- * Returns the digit of a digit key. The code of the key comes first, because Option and Shift change "key" on macOS.
- * Returns undefined for other keys.
+ * Returns the workspace action of a key, from the keymap: by default ⌘T (new tab), ⌘W (close the pane, or the tab
+ * with one pane), ⌘D (split right), ⇧⌘D (split down), and the other keys of `SHORTCUT_INFO`. Settings › Keyboard can
+ * change the keys. Other keys return undefined.
  */
-function digitOf(input: { key: string; code?: string }): string | undefined {
-    if (input.code) return /^Digit\d$/.test(input.code) ? input.code.slice(5) : undefined;
-    return /^\d$/.test(input.key) ? input.key : undefined;
-}
-
-/**
- * Returns the workspace action of a key: ⌘T (new tab), ⌘W (close the pane, or the tab with one pane),
- * ⌘D (split right), ⇧⌘D (split down), ⌘[ (back), ⌘] (forward), ⌥⌘ and an arrow key (move the focus to the pane at
- * that side), ⌘B (show or hide the sidebar), ⇧⌘B (move the focus to the sidebar), ⌘E (show or hide the right panel),
- * ⌘N (open the New worktree dialog), ⇧⌘E (move the focus to the file explorer), ⇧⌘F (search the file contents for the
- * selected text).
- * Also ⌘1 to ⌘8 (select that tab), ⌘9 (select the last tab), ⇧⌘[ and ⌃⇧Tab (select the previous tab), ⇧⌘] and ⌃Tab
- * (select the next tab), ⌥⌘1 to ⌥⌘6 (open a view), ⇧⌘0 (move the focus to the workspace), ⇧⌘P (open the command
- * palette), ⇧⌘C (copy the relative path of the active file, or the link of the pull request or task), ⌥⌘R (show the active file in Finder)
- * and ⌥⌘O (open the active file or the worktree in the external editor).
- * Other keys return undefined.
- */
-export function shortcutAction(input: {
-    type: string;
-    meta: boolean;
-    shift: boolean;
-    control: boolean;
-    alt: boolean;
-    key: string;
-    code?: string;
-}): ShortcutAction | undefined {
+export function shortcutAction(input: KeyInput & { type: string }, keymap: Keymap = DEFAULT_KEYMAP): ShortcutAction | undefined {
     if (input.type !== 'keyDown') return undefined;
-    // ⌃Tab and ⌃⇧Tab have no ⌘. They are the only workspace keys with Control.
-    if (input.control && !input.meta && !input.alt && (input.code === 'Tab' || input.key === 'Tab')) {
-        return input.shift ? 'previousTab' : 'nextTab';
-    }
-    if (!input.meta || input.control) return undefined;
-    const key = input.code?.startsWith('Key') ? input.code.slice(3).toLowerCase() : input.key.toLowerCase();
-    const digit = digitOf(input);
-    if (input.alt) {
-        if (input.shift) return undefined;
-        if (key === 'r') return 'revealFileInFinder';
-        if (key === 'o') return 'openInEditor';
-        return FOCUS_KEYS[key] ?? (input.code ? VIEW_KEYS[input.code] : undefined);
-    }
-    if (key === 'd') return input.shift ? 'down' : 'right';
-    if (key === 'e') return input.shift ? 'focusExplorer' : 'toggleRightPanel';
-    if (key === 'b') return input.shift ? 'focusSidebar' : 'toggleSidebar';
-    if (input.shift) {
-        // Shift changes "key": ⇧⌘[ sends "{" and ⇧⌘0 sends ")" on a US keyboard. The code stays the same.
-        if (input.code === 'BracketLeft' || key === '{') return 'previousTab';
-        if (input.code === 'BracketRight' || key === '}') return 'nextTab';
-        if (digit === '0') return 'focusWorkspace';
-        if (key === 'p') return 'commandPalette';
-        if (key === 'c') return 'copyFilePath';
-        if (key === 'f') return 'searchContents';
-        return undefined;
-    }
-    if (digit) return TAB_KEYS[digit];
-    if (key === 't') return 'newTab';
-    if (key === 'w') return 'close';
-    if (key === 'n') return 'newWorktree';
-    if (input.code === 'BracketLeft' || key === '[') return 'back';
-    if (input.code === 'BracketRight' || key === ']') return 'forward';
-    return undefined;
+    return commandForInput(keymap, input, isShortcutAction) as ShortcutAction | undefined;
 }
 
 /**
- * Returns true for ⇧⌘M without other modifier keys. A diff then opens the comment box for the line of the cursor or
+ * Returns true for the comment key (by default ⇧⌘M) of the keymap. A diff then opens the comment box for the line of the cursor or
  * for the selected lines.
  */
-export function isCommentKey(input: { key: string; code?: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean; shiftKey: boolean }): boolean {
-    const key = input.code?.startsWith('Key') ? input.code.slice(3).toLowerCase() : input.key.toLowerCase();
-    return key === 'm' && input.metaKey && input.shiftKey && !input.ctrlKey && !input.altKey;
+export function isCommentKey(input: KeyEventFields, keymap: Keymap = DEFAULT_KEYMAP): boolean {
+    return matchesCommand(keymap, 'comment', inputOfEvent(input));
 }
 
 /** The keys of the header of a pull request in the Review view. */
 export type PullRequestKeyAction = 'openWorktree' | 'openOnHost';
 
 /**
- * Returns the action of a key in the header of a pull request: ⌘O (open the worktree of the head branch) and ⇧⌘O (open
- * the pull request on the host). Other keys return undefined.
+ * Returns the action of a key in the header of a pull request, from the keymap: by default ⌘O (open the worktree of
+ * the head branch) and ⇧⌘O (open the pull request on the host). Other keys return undefined.
  */
-export function pullRequestKeyAction(input: {
-    key: string;
-    code?: string;
-    metaKey: boolean;
-    ctrlKey: boolean;
-    altKey: boolean;
-    shiftKey: boolean;
-}): PullRequestKeyAction | undefined {
-    const key = input.code?.startsWith('Key') ? input.code.slice(3).toLowerCase() : input.key.toLowerCase();
-    if (key !== 'o' || !input.metaKey || input.ctrlKey || input.altKey) return undefined;
-    return input.shiftKey ? 'openOnHost' : 'openWorktree';
+export function pullRequestKeyAction(input: KeyEventFields, keymap: Keymap = DEFAULT_KEYMAP): PullRequestKeyAction | undefined {
+    const event = inputOfEvent(input);
+    if (matchesCommand(keymap, 'openWorktree', event)) return 'openWorktree';
+    if (matchesCommand(keymap, 'openOnHost', event)) return 'openOnHost';
+    return undefined;
 }
 
 /** The app keys of the macOS menu that the main process runs itself. */
 export type AppKeyAction = 'quit' | 'quitAndStop' | 'settings' | 'checkForUpdates' | 'hide' | 'newWindow';
 
+/** The app keys that Settings › Keyboard cannot change. macOS gives ⌘Q and ⌘H to Quit and Hide. */
+export type FixedAppKeyAction = 'quit' | 'hide';
+
+/** The app keys that Settings › Keyboard can change. */
+export type RemappableAppKeyAction = Exclude<AppKeyAction, FixedAppKeyAction>;
+
+const QUIT_CHORD: KeyChord = { key: 'Q', meta: true, control: false, alt: false, shift: false };
+const HIDE_CHORD: KeyChord = { key: 'H', meta: true, control: false, alt: false, shift: false };
+
 /**
- * Returns the app action of a key: ⌘Q (quit, the agents keep running), ⇧⌥⌘Q (quit and stop all agents),
- * ⌘, (settings), ⇧⌘U (check for updates), ⌘H (hide) and ⇧⌘N (new window). A focused terminal takes all keys, so the menu does not get these keys. The main
- * process reads them before the page. Other keys return undefined.
+ * Returns the app action of a key: ⌘Q (quit, the agents keep running), ⌘H (hide), and the app keys of the keymap. By
+ * default these are ⇧⌥⌘Q (quit and stop all agents), ⌘, (settings), ⇧⌘U (check for updates), and ⇧⌘N (new window).
+ * A focused terminal takes all keys, so the menu does not get these keys. The main process reads them before the page.
+ * Other keys return undefined.
  */
-export function appKeyAction(input: {
-    type: string;
-    meta: boolean;
-    shift: boolean;
-    control: boolean;
-    alt: boolean;
-    key: string;
-    code?: string;
-}): AppKeyAction | undefined {
-    if (input.type !== 'keyDown' || !input.meta || input.control) return undefined;
-    const key = input.code?.startsWith('Key') ? input.code.slice(3).toLowerCase() : input.key.toLowerCase();
-    if (key === 'q') {
-        if (input.shift && input.alt) return 'quitAndStop';
-        return input.shift || input.alt ? undefined : 'quit';
-    }
-    if (key === 'u') return input.shift && !input.alt ? 'checkForUpdates' : undefined;
-    if (key === 'n') return input.shift && !input.alt ? 'newWindow' : undefined;
-    if (input.shift || input.alt) return undefined;
-    if (input.code === 'Comma' || key === ',') return 'settings';
-    if (key === 'h') return 'hide';
-    return undefined;
+export function appKeyAction(input: KeyInput & { type: string }, keymap: Keymap = DEFAULT_KEYMAP): AppKeyAction | undefined {
+    if (input.type !== 'keyDown') return undefined;
+    if (inputMatches(input, QUIT_CHORD)) return 'quit';
+    if (inputMatches(input, HIDE_CHORD)) return 'hide';
+    return commandForInput(keymap, input, isRemappableAppKey) as RemappableAppKeyAction | undefined;
 }
 
-/** Returns true for ⌘K without other modifier keys. A focused terminal then clears its screen and scrollback. */
-export function isClearKey(input: { key: string; code?: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean; shiftKey: boolean }): boolean {
-    const key = input.code?.startsWith('Key') ? input.code.slice(3).toLowerCase() : input.key.toLowerCase();
-    return key === 'k' && input.metaKey && !input.ctrlKey && !input.altKey && !input.shiftKey;
+/** Returns true for the clear key (by default ⌘K) of the keymap. A focused terminal then clears its screen and scrollback. */
+export function isClearKey(input: KeyEventFields, keymap: Keymap = DEFAULT_KEYMAP): boolean {
+    return matchesCommand(keymap, 'clearTerminal', inputOfEvent(input));
 }
 
 /** The character that Ctrl+V sends. Claude Code and Codex then read an image from the clipboard. */
@@ -262,7 +177,7 @@ export function pendingCommentStep(input: {
 }
 
 /** The groups of the Keyboard Shortcuts page, in the order of the page. */
-export const SHORTCUT_GROUPS = ['Worktrees and tabs', 'Splits', 'Views', 'Panels and focus', 'History', 'App', 'Terminal and review'] as const;
+export const SHORTCUT_GROUPS = ['Worktrees and tabs', 'Splits', 'Views', 'Panels and focus', 'History', 'App', 'Terminal, editor, and review'] as const;
 
 export type ShortcutGroup = (typeof SHORTCUT_GROUPS)[number];
 
@@ -329,18 +244,189 @@ export const APP_KEY_INFO: Record<AppKeyAction, ShortcutInfo> = {
     quitAndStop: { label: 'Quit and stop all agents', keys: ['⇧⌥⌘Q'], group: 'App' }
 };
 
-/** The keys of a terminal and a diff. A test checks each key combination with its function. */
-export const OTHER_KEY_INFO = {
-    clear: { label: 'Clear the terminal screen and scrollback', keys: ['⌘K'], group: 'Terminal and review' },
-    pasteImage: { label: 'Paste an image into Claude Code or Codex', keys: ['⌃V'], group: 'Terminal and review' },
-    comment: { label: 'Comment on the selected lines of a diff', keys: ['⇧⌘M'], group: 'Terminal and review' },
-    openWorktree: { label: 'Open the worktree of a pull request', keys: ['⌘O'], group: 'Terminal and review' },
-    openOnHost: { label: 'Open a pull request on GitHub', keys: ['⇧⌘O'], group: 'Terminal and review' }
-} as const satisfies Record<string, ShortcutInfo>;
+/** The keys that work only in one place: a terminal, an editor, a diff, or the header of a pull request. */
+export type ScopedKeyAction = 'clearTerminal' | 'askAgent' | 'toggleBlame' | 'comment' | 'openWorktree' | 'openOnHost';
 
-/** Returns all shortcuts, in the order of the groups. Each entry is one action. */
-export function allShortcuts(): ShortcutInfo[] {
-    const all = [...Object.values(SHORTCUT_INFO), ...Object.values(APP_KEY_INFO), ...Object.values(OTHER_KEY_INFO)];
+/** The keys of a terminal, an editor, and a diff. A test checks each key combination with its function. */
+export const OTHER_KEY_INFO = {
+    clearTerminal: { label: 'Clear the terminal screen and scrollback', keys: ['⌘K'], group: 'Terminal, editor, and review' },
+    pasteImage: { label: 'Paste an image into Claude Code or Codex', keys: ['⌃V'], group: 'Terminal, editor, and review' },
+    askAgent: { label: 'Ask the agent about the selected lines of the editor', keys: ['⇧⌘A'], group: 'Terminal, editor, and review' },
+    toggleBlame: { label: 'Show or hide git blame in the editor', keys: ['⌥⌘B'], group: 'Terminal, editor, and review' },
+    comment: { label: 'Comment on the selected lines of a diff', keys: ['⇧⌘M'], group: 'Terminal, editor, and review' },
+    openWorktree: { label: 'Open the worktree of a pull request', keys: ['⌘O'], group: 'Terminal, editor, and review' },
+    openOnHost: { label: 'Open a pull request on GitHub', keys: ['⇧⌘O'], group: 'Terminal, editor, and review' }
+} as const satisfies Record<ScopedKeyAction | 'pasteImage', ShortcutInfo>;
+
+/* ------------------------------------------------------------------------------------------------------------------ */
+/* Commands and keymaps                                                                                               */
+/* ------------------------------------------------------------------------------------------------------------------ */
+
+/** The ID of a command that Settings › Keyboard and ~/.shipwarden/keybindings.json can give a different key. */
+export type KeyCommandId = ShortcutAction | RemappableAppKeyAction | ScopedKeyAction;
+
+/**
+ * The place where a key works. A "global" key works in all of the window, and the main process reads it before the
+ * page. The other keys work only in their place. Two keys in two different places (not "global") do not conflict.
+ */
+export type KeyScope = 'global' | 'terminal' | 'editor' | 'diff' | 'pullRequest';
+
+/** A command that can get a different key. */
+export interface KeyCommand {
+    id: KeyCommandId;
+    label: string;
+    group: ShortcutGroup;
+    scope: KeyScope;
+    /** The keys of `SHORTCUT_INFO`, `APP_KEY_INFO`, or `OTHER_KEY_INFO`. */
+    defaults: readonly KeyChord[];
+}
+
+const SCOPES: Record<ScopedKeyAction, KeyScope> = {
+    clearTerminal: 'terminal',
+    askAgent: 'editor',
+    toggleBlame: 'editor',
+    comment: 'diff',
+    openWorktree: 'pullRequest',
+    openOnHost: 'pullRequest'
+};
+
+const REMAPPABLE_APP_KEYS: readonly RemappableAppKeyAction[] = ['settings', 'checkForUpdates', 'newWindow', 'quitAndStop'];
+
+function defaultChords(info: ShortcutInfo): KeyChord[] {
+    return info.keys.map(text => {
+        const chord = parseChordSymbols(text);
+        if (!chord) throw new Error(`The default key "${text}" is not a key combination.`);
+        return chord;
+    });
+}
+
+/** All commands that can get a different key, in the order of the Keyboard section. The first command wins a conflict. */
+export const KEY_COMMANDS: readonly KeyCommand[] = [
+    ...(Object.entries(SHORTCUT_INFO) as [ShortcutAction, ShortcutInfo][]).map(([id, info]) => ({
+        id,
+        label: info.label,
+        group: info.group,
+        scope: 'global' as const,
+        defaults: defaultChords(info)
+    })),
+    ...REMAPPABLE_APP_KEYS.map(id => ({
+        id,
+        label: APP_KEY_INFO[id].label,
+        group: APP_KEY_INFO[id].group,
+        scope: 'global' as const,
+        defaults: defaultChords(APP_KEY_INFO[id])
+    })),
+    ...(Object.keys(SCOPES) as ScopedKeyAction[]).map(id => ({
+        id,
+        label: OTHER_KEY_INFO[id].label,
+        group: OTHER_KEY_INFO[id].group,
+        scope: SCOPES[id],
+        defaults: defaultChords(OTHER_KEY_INFO[id])
+    }))
+];
+
+const COMMANDS_BY_ID = new Map<string, KeyCommand>(KEY_COMMANDS.map(command => [command.id, command]));
+
+/** Returns the command of an ID, or undefined for an ID that is not a command. */
+export function keyCommand(id: string): KeyCommand | undefined {
+    return COMMANDS_BY_ID.get(id);
+}
+
+/** Returns true when the value is the ID of a command. */
+export function isKeyCommandId(value: unknown): value is KeyCommandId {
+    return typeof value === 'string' && COMMANDS_BY_ID.has(value);
+}
+
+function isShortcutAction(id: KeyCommandId): boolean {
+    return id in SHORTCUT_INFO;
+}
+
+function isRemappableAppKey(id: KeyCommandId): boolean {
+    return (REMAPPABLE_APP_KEYS as readonly string[]).includes(id);
+}
+
+/** The keys of each command, and the commands of each key. */
+export interface Keymap {
+    /** The keys of each command. An empty list means that the command has no key. */
+    keys: Readonly<Record<KeyCommandId, readonly KeyChord[]>>;
+    /** The commands of each key, by `chordId`, in the order of `KEY_COMMANDS`. */
+    byChord: ReadonlyMap<string, readonly KeyCommandId[]>;
+}
+
+/** Makes a keymap from the keys of each command. A command without an entry gets its default keys. */
+export function buildKeymap(keys: Partial<Record<KeyCommandId, readonly KeyChord[]>> = {}): Keymap {
+    const all = {} as Record<KeyCommandId, readonly KeyChord[]>;
+    const byChord = new Map<string, KeyCommandId[]>();
+    for (const command of KEY_COMMANDS) {
+        const chords = keys[command.id] ?? command.defaults;
+        all[command.id] = chords;
+        for (const chord of chords) {
+            const id = chordId(chord);
+            const list = byChord.get(id) ?? [];
+            if (!list.includes(command.id)) list.push(command.id);
+            byChord.set(id, list);
+        }
+    }
+    return { keys: all, byChord };
+}
+
+/** The keymap with the default keys. */
+export const DEFAULT_KEYMAP: Keymap = buildKeymap();
+
+/**
+ * Returns the first command of the key event that `accept` accepts. The key names of the event come in their order
+ * (see `keyNamesOf`), and the commands of one key come in the order of `KEY_COMMANDS`.
+ */
+export function commandForInput(keymap: Keymap, input: KeyInput, accept: (id: KeyCommandId) => boolean): KeyCommandId | undefined {
+    for (const key of keyNamesOf(input)) {
+        const ids = keymap.byChord.get(chordId({ key, meta: input.meta, control: input.control, alt: input.alt, shift: input.shift }));
+        const id = ids?.find(accept);
+        if (id) return id;
+    }
+    return undefined;
+}
+
+/** Returns true when the key event is a key of the command in the keymap. */
+export function matchesCommand(keymap: Keymap, id: KeyCommandId, input: KeyInput): boolean {
+    return keymap.keys[id].some(chord => inputMatches(input, chord));
+}
+
+/** Returns the keys of a command in the form of the UI, for example ["⇧⌘["]. An empty list means no key. */
+export function keyLabels(keymap: Keymap, id: KeyCommandId): string[] {
+    return keymap.keys[id].map(formatChord);
+}
+
+/** Returns the first key of a command in the form of the UI, for example "⇧⌘P". Returns undefined for no key. */
+export function keyLabel(keymap: Keymap, id: KeyCommandId): string | undefined {
+    const chord = keymap.keys[id][0];
+    return chord ? formatChord(chord) : undefined;
+}
+
+/**
+ * Replaces the default keys in a help text with the keys of the keymap. For example, "Press ⌘N" becomes "Press ⌥⌘N"
+ * when the user gave "New worktree" the key ⌥⌘N. A key that is not the default key of a command stays as it is. A
+ * command without a key gets the text "no key".
+ */
+export function remapKeyText(text: string, keymap: Keymap): string {
+    if (keymap === DEFAULT_KEYMAP) return text;
+    return text.replace(KEY_TOKEN, token => {
+        const chord = parseChordSymbols(token);
+        if (!chord) return token;
+        const id = DEFAULT_KEYMAP.byChord.get(chordId(chord))?.[0];
+        if (!id) return token;
+        const current = keymap.keys[id];
+        if (current.some(other => sameChord(other, chord))) return token;
+        return current[0] ? formatChord(current[0]) : 'no key';
+    });
+}
+
+/** A key combination in a text, for example "⇧⌘P" or "⌥⌘←". A letter key must not continue as a word ("⌘Enter"). */
+const KEY_TOKEN = /[⌃⌥⇧⌘]+(?:Tab|Space|F1[0-2]|F[1-9]|[A-Z](?![A-Za-z])|[0-9]|[←→↑↓↩⎋⌫⌦[\],./;'`=\\-])/gu;
+
+/** Returns all shortcuts, in the order of the groups. Each entry is one action. The keys come from the keymap. */
+export function allShortcuts(keymap: Keymap = DEFAULT_KEYMAP): ShortcutInfo[] {
+    const current = (id: string, info: ShortcutInfo): ShortcutInfo => (isKeyCommandId(id) ? { ...info, keys: keyLabels(keymap, id) } : info);
+    const all = [SHORTCUT_INFO, APP_KEY_INFO, OTHER_KEY_INFO].flatMap(table => Object.entries(table).map(([id, info]) => current(id, info)));
     return SHORTCUT_GROUPS.flatMap(group => all.filter(item => item.group === group));
 }
 
@@ -352,13 +438,18 @@ export interface ShortcutRow extends ShortcutInfo {
 /** The tab actions that the page shows as one row. */
 const TAB_RANGE: readonly ShortcutAction[] = ['selectTab1', 'selectTab2', 'selectTab3', 'selectTab4', 'selectTab5', 'selectTab6', 'selectTab7', 'selectTab8'];
 
-/** Returns the rows of the Keyboard Shortcuts page: all shortcuts, with ⌘1 to ⌘8 in one row. */
-export function shortcutRows(): ShortcutRow[] {
-    const tabs = new Set(TAB_RANGE.map(action => SHORTCUT_INFO[action]));
+/**
+ * Returns the rows of the Keyboard Shortcuts page: all shortcuts, with ⌘1 to ⌘8 in one row. The tab keys get one row
+ * only while all of them have their default keys.
+ */
+export function shortcutRows(keymap: Keymap = DEFAULT_KEYMAP): ShortcutRow[] {
+    const all = allShortcuts(keymap);
+    const tabLabels = new Set(TAB_RANGE.map(action => SHORTCUT_INFO[action].label));
+    const defaultTabs = TAB_RANGE.every(action => keymap.keys[action] === DEFAULT_KEYMAP.keys[action]);
     const rows: ShortcutRow[] = [];
-    for (const item of allShortcuts()) {
-        if (!tabs.has(item)) rows.push(item);
-        else if (item === SHORTCUT_INFO.selectTab1) {
+    for (const item of all) {
+        if (!defaultTabs || !tabLabels.has(item.label)) rows.push(item);
+        else if (item.label === SHORTCUT_INFO.selectTab1.label) {
             rows.push({
                 label: 'Select tab 1 to 8',
                 keys: [SHORTCUT_INFO.selectTab1.keys[0], SHORTCUT_INFO.selectTab8.keys[0]],

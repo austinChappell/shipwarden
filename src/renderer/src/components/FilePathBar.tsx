@@ -6,6 +6,7 @@ import { copyFilePath, onFilePathCopied } from '../files/file-path-copy';
 import { errorText } from '../util';
 import { showContextMenu, type ContextMenuItem } from './ContextMenu';
 import { IconButton } from './ui';
+import { useKeyText } from '../keyboard/keymap';
 
 interface Props {
     root: string;
@@ -33,6 +34,7 @@ const COPIED_MS = 1500;
  */
 export function FilePathBar({ root, path, onError, onRevealInExplorer, canBlame, historyShown, onToggleHistory }: Props) {
     const [copied, setCopied] = useState(false);
+    const keyText = useKeyText();
     const blameVisible = useBlameVisible();
     const editorLabel = openInEditorLabel(useExternalEditor());
     const parts = path.split('/');
@@ -102,7 +104,7 @@ export function FilePathBar({ root, path, onError, onRevealInExplorer, canBlame,
                 {canBlame && (
                     <IconButton
                         size="sm"
-                        label={blameVisible ? 'Hide git blame (⌥⌘B)' : 'Show git blame (⌥⌘B)'}
+                        label={keyText(blameVisible ? 'Hide git blame (⌥⌘B)' : 'Show git blame (⌥⌘B)')}
                         active={blameVisible}
                         aria-pressed={blameVisible}
                         disabled={historyShown}
@@ -122,17 +124,27 @@ export function FilePathBar({ root, path, onError, onRevealInExplorer, canBlame,
                 )}
                 <IconButton
                     size="sm"
-                    label="Copy relative path (⇧⌘C)"
-                    title={copied ? 'Copied' : 'Copy relative path (⇧⌘C)'}
+                    label={keyText('Copy relative path (⇧⌘C)')}
+                    title={copied ? 'Copied' : keyText('Copy relative path (⇧⌘C)')}
                     className={copied ? 'copied' : undefined}
                     icon={copied ? <Check size={14} strokeWidth={1.8} /> : <Copy size={14} strokeWidth={1.6} />}
                     onClick={() => copy(path)}
                 />
                 {onRevealInExplorer && (
-                    <IconButton size="sm" label="Reveal in file explorer (⇧⌘E)" icon={<ListTree size={14} strokeWidth={1.6} />} onClick={onRevealInExplorer} />
+                    <IconButton
+                        size="sm"
+                        label={keyText('Reveal in file explorer (⇧⌘E)')}
+                        icon={<ListTree size={14} strokeWidth={1.6} />}
+                        onClick={onRevealInExplorer}
+                    />
                 )}
-                <IconButton size="sm" label="Reveal in Finder (⌥⌘R)" icon={<FolderOpen size={14} strokeWidth={1.6} />} onClick={revealInFinder} />
-                <IconButton size="sm" label={`${editorLabel} (⌥⌘O)`} icon={<SquareArrowOutUpRight size={14} strokeWidth={1.6} />} onClick={openInEditor} />
+                <IconButton size="sm" label={keyText('Reveal in Finder (⌥⌘R)')} icon={<FolderOpen size={14} strokeWidth={1.6} />} onClick={revealInFinder} />
+                <IconButton
+                    size="sm"
+                    label={keyText(`${editorLabel} (⌥⌘O)`)}
+                    icon={<SquareArrowOutUpRight size={14} strokeWidth={1.6} />}
+                    onClick={openInEditor}
+                />
             </span>
         </div>
     );

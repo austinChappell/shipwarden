@@ -354,12 +354,17 @@ variables as the automations. Insert a template from the Prompts list of an agen
 or with its own shortcut. A variable without a value gets a field before the insert. Each template is a JSON file in
 `~/.shipwarden/prompts`. See [docs/prompt-templates.md](docs/prompt-templates.md).
 
+Settings › Keyboard changes the keys of the commands. Find a command, click "Record", and press the new keys. The
+section shows a conflict when two commands share a key, and a warning for a key of macOS or the terminal. Your keys are
+in `~/.shipwarden/keybindings.json`, so you can also change the file in a text editor. The change applies at once, also
+to the macOS menu. See [docs/keybindings.md](docs/keybindings.md).
+
 At the first start, a welcome page checks your tools (git, the agent and GitHub access), helps you add or clone a
 repository, choose your agent and start the first agent. Help › Show Welcome opens it again. A short guided tour shows
 the main parts of the window. Help › Take the Tour starts it at all times. Help › Keyboard Shortcuts lists all keys.
 A new user also gets a getting started checklist on the Dashboard.
 
-Tips show the features that are easy to miss. At each start, one random tip from a list of 48 shows in the
+Tips show the features that are easy to miss. At each start, one random tip from a list of 52 shows in the
 bottom-right corner. While ShipWarden stays open, a new tip shows 12 hours after you close the last one. A tip does not
 show again within 10 tips. Some views have their own tip, for example the Dashboard. Close a tip in a view, and it does not show again.
 Turn off the tips in the corner notice or in Settings › Appearance › Tips.

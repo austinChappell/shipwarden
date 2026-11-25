@@ -4,6 +4,7 @@ import { errorText } from '../util';
 import { editorListQuery, setSelectedEditor } from '../files/external-editor';
 import { SettingsGroup, SettingsRow } from './settings-ui';
 import { Select } from './ui';
+import { useKeyText } from '../keyboard/keymap';
 
 interface Props {
     /** Saves the app path of the editor. */
@@ -17,6 +18,7 @@ interface Props {
  */
 export function EditorSettings({ onChange, onError }: Props) {
     const { data, isPending } = useQuery({ ...editorListQuery, staleTime: 0 });
+    const keyText = useKeyText();
     const editors = data?.editors ?? [];
     const select = (appPath: string) =>
         onChange(appPath).then(
@@ -30,7 +32,9 @@ export function EditorSettings({ onChange, onError }: Props) {
                 label="Open in"
                 description={
                     isPending || editors.length > 0
-                        ? 'The editor for "Open in editor" (⌥⌘O) in the worktree menu, the file tabs, and the file explorer. A file opens at its cursor line.'
+                        ? keyText(
+                              'The editor for "Open in editor" (⌥⌘O) in the worktree menu, the file tabs, and the file explorer. A file opens at its cursor line.'
+                          )
                         : NO_EDITOR_TEXT
                 }
                 control={

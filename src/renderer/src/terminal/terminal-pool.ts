@@ -9,6 +9,7 @@ import { pauseRendering, resumeRendering } from './render-loop';
 import { writeKeepingScroll } from './scroll-lock';
 import { findInRows, type TerminalMatch } from './terminal-find';
 import { openLink } from '../links';
+import { currentKeymap } from '../keyboard/keymap';
 
 /** Clears the screen and the scrollback (⌘K). */
 const CLEAR_ALL = '\x1b[H\x1b[2J\x1b[3J';
@@ -382,7 +383,7 @@ export class TerminalPool {
             if (event.type !== 'keydown') {
                 return false;
             }
-            if (isClearKey(event)) {
+            if (isClearKey(event, currentKeymap())) {
                 event.preventDefault();
                 entry.terminal.write(CLEAR_ALL);
                 // Form feed (Ctrl+L) tells the shell or the agent to draw its prompt again.

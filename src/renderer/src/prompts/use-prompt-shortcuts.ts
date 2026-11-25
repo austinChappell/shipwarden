@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { templateForKey } from '@shared/prompt-templates';
 import { dialogOpen } from '../components/ConfirmDialog';
+import { recordingKeys } from '../keyboard/keymap';
 import { errorText } from '../util';
 import { usePromptTemplates } from './prompt-queries';
 import { runPromptTemplate } from './prompt-runner';
@@ -17,7 +18,7 @@ export function usePromptShortcuts(enabled: boolean, onError: (message: string) 
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
             const { enabled: on, templates, onError: report } = state.current;
-            if (!on || event.repeat || templates.length === 0 || dialogOpen()) return;
+            if (!on || event.repeat || templates.length === 0 || dialogOpen() || recordingKeys()) return;
             const template = templateForKey(templates, event);
             if (!template) return;
             event.preventDefault();

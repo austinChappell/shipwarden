@@ -26,6 +26,7 @@ import { readStyle, STYLE_KEY, useColorMode, useMetaKey, type DiffStyle } from '
 import { FindBar, findLineElement, renderedLines } from './FindBar';
 import { useCopySelection, type FindRequest } from './selected-text';
 import { FileBody } from './PullRequestFileBody';
+import { currentKeymap } from '../keyboard/keymap';
 
 export { readStyle, STYLE_KEY, THEME_CSS, useColorMode, type DiffStyle } from './diff-style';
 export { FindBar, findLineElement } from './FindBar';
@@ -435,7 +436,7 @@ export function PullRequestFilesStream({
      * The diff has no cursor, so the search finds the line.
      */
     const commentKey = (event: React.KeyboardEvent) => {
-        if (!isCommentKey(event) || !current || (pr.state !== 'OPEN' && !repo)) return;
+        if (!isCommentKey(event, currentKeymap()) || !current || (pr.state !== 'OPEN' && !repo)) return;
         event.preventDefault();
         setOpen(map => ({ ...map, [current.path]: true }));
         setComposer({ path: current.path, side: current.side, line: current.line, startLine: current.line });

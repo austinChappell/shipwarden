@@ -27,6 +27,8 @@ import { AutomationStore } from './automations/automation-store';
 import { EngineLock, EngineLockKeeper, engineLockPath } from './automations/engine-lock';
 import { pendingRemoteRuns } from '@shared/automation-engine';
 import { PromptStore } from './prompts/prompt-store';
+import { KeybindingStore } from './keybindings/keybinding-store';
+import { KEYBINDINGS_FILE_NAME } from '@shared/keybindings';
 import { PlanStore } from './plans/plan-store';
 import { Coordinators } from './coordinator/coordinators';
 import { PrGroupStore } from './pr-groups/pr-group-store';
@@ -349,6 +351,10 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
     );
     /** The prompt templates are files in the home folder too, so the user can share them. */
     const prompts = new PromptStore(join(os.homedir(), '.shipwarden', 'prompts'), file => shell.trashItem(file));
+    /** The keybindings file is in the home folder too. A separate app data folder (a test of a first start) has its own file. */
+    const keybindings = new KeybindingStore(
+        separateDataFolder ? join(userData, KEYBINDINGS_FILE_NAME) : join(os.homedir(), '.shipwarden', KEYBINDINGS_FILE_NAME)
+    );
     const ptyHostLog = join(userData, 'pty-host.log');
 
     /**
@@ -809,6 +815,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         automations,
         engineOwnership,
         prompts,
+        keybindings,
         ptyHostLog,
         terminalSizes,
         remote,

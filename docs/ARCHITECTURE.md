@@ -692,8 +692,8 @@ The plan is in `docs/onboarding-plan.md`. Phase 1 adds the state, the setup chec
   - Review and Pipelines: no code review account (Open Settings › Code review). The Dashboard shows the same fix in a
     card at the top, because its task comments work without an account. The hint names `gh auth login`.
   - Pipelines: a repository without workflows gets one sentence about GitHub Actions.
-- **Keyboard Shortcuts.** `ShortcutsDialog` (Help › Keyboard Shortcuts) shows `shortcutRows()` from
-  `src/shared/shortcuts.ts`. `SHORTCUT_INFO` is a `Record<ShortcutAction, …>`, so a new action does not compile
+- **Keyboard Shortcuts.** `ShortcutsDialog` (Help › Keyboard Shortcuts) shows `shortcutRows(keymap)` from
+  `src/shared/shortcuts.ts`, with the keys of the user (see "Keybindings"). `SHORTCUT_INFO` is a `Record<ShortcutAction, …>`, so a new action does not compile
   without its text. Tests send each listed key through `shortcutAction`, `appKeyAction` and the terminal key
   functions, and check that each menu accelerator is in the list. So the page cannot get out of date.
 - **Checklist.** `ChecklistCard` at the top of the Dashboard. `updatedChecklist` (`src/shared/checklist.ts`) marks a
@@ -754,6 +754,39 @@ The user guide and the file format are in [prompt-templates.md](prompt-templates
 - **Shortcuts.** `usePromptShortcuts` reads the keys in the capture phase of the page. `shortcutConflict` rejects the
   keys of `allShortcuts`, `shortcutAction`, `appKeyAction`, a few macOS keys, the text keybinds of the terminal config,
   and the other templates. So the main process never takes a template key.
+
+### Keybindings
+
+The user guide and the file format are in [keybindings.md](keybindings.md).
+
+- **Chords.** `src/shared/key-chords.ts` reads and writes a key combination in two forms: the UI form ("⇧⌘P") and the
+  Electron accelerator form ("CmdOrCtrl+Shift+P"). The file uses the accelerator form. `keyNamesOf` gives the key
+  names of a key event: the code first (Option and Shift change the character), then the character (other keyboard
+  layouts).
+- **Commands and keymaps.** `KEY_COMMANDS` (`src/shared/shortcuts.ts`) lists each command that can get a new key, with
+  its scope and its default keys from `SHORTCUT_INFO`, `APP_KEY_INFO`, and `OTHER_KEY_INFO`. A `Keymap` has the keys of
+  each command and the commands of each key. `shortcutAction`, `appKeyAction`, `isClearKey`, `isCommentKey`, and
+  `pullRequestKeyAction` take a keymap (the default keymap when there is none). ⌘Q and ⌘H are fixed.
+- **File.** `KeybindingStore` (`src/main/keybindings/keybinding-store.ts`) reads `~/.shipwarden/keybindings.json` at the
+  start and watches its folder. `parseKeybindingsFile` (`src/shared/keybindings.ts`) never throws. It keeps the valid
+  entries and gives a message for each other entry. `applyKeybindingChanges` writes only the changed commands and keeps
+  the other entries of the file. A file that is not valid JSON blocks the changes until the user corrects it or clicks
+  "Reset all".
+- **Main process.** `before-input-event` and the browser view keys read `keybindings.keymap()`. A new state builds the
+  menu again (`menuTemplate(actions, keymap)`) and goes to all pages (`keybindings:changed`).
+- **Page.** `startKeybindings` (`src/renderer/src/keyboard/keymap.ts`) loads the state into the TanStack Query cache and
+  puts each new state from the main process in the cache. Key handlers outside React read `currentKeymap()`. Components
+  use `useKeymap`, `useKeyLabel`, or `useKeyText`. `remapKeyText` replaces the default keys in a help text (tooltips,
+  tips, the tour, and the checklist), so these texts keep their default keys in the source.
+- **Monaco.** `addKeyedAction` (`src/renderer/src/editor/monaco-keys.ts`) adds an editor action with the keys of the
+  keymap, and adds it again after a change.
+- **Record mode.** While Settings › Keyboard records a key, `keybindings:record` stops the shortcuts in the main
+  process for that page, and `recordingKeys()` stops them in the page. ⌘Q and ⌘H still work.
+- **Conflicts.** `findConflicts` and `commandsWithKey` compare the commands that can get the same key event: a global
+  command and any other command, or two commands of the same scope. The first command of `KEY_COMMANDS` gets a shared
+  key. In Settings › Keyboard, a recorded key of another command asks first, and "Replace" removes it from the other
+  command (`assignKey`). `reservedKey` blocks the keys of macOS and the Edit menu, and warns for the find, zoom, and
+  terminal keys.
 
 ### Automations
 

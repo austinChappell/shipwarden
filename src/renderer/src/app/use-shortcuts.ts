@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { shortcutAction, type ShortcutAction } from '@shared/shortcuts';
 import { dialogOpen } from '../components/ConfirmDialog';
+import { currentKeymap, recordingKeys } from '../keyboard/keymap';
 
 const api = window.shipwarden;
 
@@ -34,15 +35,20 @@ export function useShortcuts(handler: (action: ShortcutAction) => Promise<void>,
     // normally takes these keys first (before-input-event). This is the second way, when it does not.
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
-            const action = shortcutAction({
-                type: 'keyDown',
-                meta: event.metaKey,
-                shift: event.shiftKey,
-                control: event.ctrlKey,
-                alt: event.altKey,
-                key: event.key,
-                code: event.code
-            });
+            // Settings › Keyboard records a key, so the field gets all keys.
+            if (recordingKeys()) return;
+            const action = shortcutAction(
+                {
+                    type: 'keyDown',
+                    meta: event.metaKey,
+                    shift: event.shiftKey,
+                    control: event.ctrlKey,
+                    alt: event.altKey,
+                    key: event.key,
+                    code: event.code
+                },
+                currentKeymap()
+            );
             if (action) {
                 event.preventDefault();
                 event.stopPropagation();

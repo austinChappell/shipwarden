@@ -3,6 +3,7 @@ import { Lightbulb, Star, X } from 'lucide-react';
 import { CornerNotice } from './CornerNotice';
 import { Button, IconButton } from './ui';
 import { INLINE_TIPS, type InlineTip as InlineTipContent, type InlineTipId, type Tip, type TipAction } from '@shared/tips';
+import { useKeyText } from '../keyboard/keymap';
 
 /** The tip state that the inline tips need. App.tsx gives it. */
 export interface TipsState {
@@ -43,6 +44,7 @@ interface InlineTipProps {
 
 export function InlineTip({ id, inset = false }: InlineTipProps) {
     const tips = useSyncExternalStore(subscribe, () => current);
+    const keyText = useKeyText();
     if (!tips.shows(id)) return null;
     const tip: InlineTipContent = INLINE_TIPS[id];
     const titleId = `inline-tip-${id}`;
@@ -51,7 +53,7 @@ export function InlineTip({ id, inset = false }: InlineTipProps) {
             <Lightbulb size={15} strokeWidth={1.8} className="inline-tip-icon" aria-hidden="true" />
             <div className="inline-tip-text">
                 <strong id={titleId}>{tip.title}</strong>
-                <span>{tip.body}</span>
+                <span>{keyText(tip.body)}</span>
             </div>
             {tip.action && <Button onClick={() => tips.run(tip.action!)}>{tip.action.label}</Button>}
             <IconButton
@@ -74,6 +76,7 @@ interface NoticeProps {
 
 /** The tip notice in the bottom-right corner of the window. It shows one tip. The user can close it or turn off the tips. */
 export function TipNotice({ tip, onRun, onClose, onTurnOff }: NoticeProps) {
+    const keyText = useKeyText();
     return (
         <CornerNotice>
             <section className="update-notice tip-notice" aria-labelledby="tip-notice-title">
@@ -81,7 +84,7 @@ export function TipNotice({ tip, onRun, onClose, onTurnOff }: NoticeProps) {
                 <div className="update-notice-text">
                     <span className="tip-notice-label">Tip</span>
                     <strong id="tip-notice-title">{tip.title}</strong>
-                    <span className="update-notice-detail">{tip.body}</span>
+                    <span className="update-notice-detail">{keyText(tip.body)}</span>
                     <span className="tip-notice-buttons">
                         {tip.action && (
                             <Button

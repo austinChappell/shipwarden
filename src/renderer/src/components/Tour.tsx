@@ -3,6 +3,7 @@ import { Compass, X } from 'lucide-react';
 import { calloutPosition, isOnScreen, spotlightRect, tourKey, tourStep, type CalloutPosition, type Rect, type Size, type TourStep } from '@shared/tour';
 import { useModal } from './use-modal';
 import { Button, IconButton } from './ui';
+import { useKeyText } from '../keyboard/keymap';
 
 /** The number of animation frames that a step waits for its target, for example while the right panel opens. */
 const TARGET_WAIT_FRAMES = 12;
@@ -39,6 +40,7 @@ interface Props {
  */
 export function Tour({ steps, onPrepare, onClose }: Props) {
     const [index, setIndex] = useState(0);
+    const keyText = useKeyText();
     const step = steps[index];
     const callout = useRef<HTMLDivElement>(null);
     const nextButton = useRef<HTMLButtonElement>(null);
@@ -160,7 +162,7 @@ export function Tour({ steps, onPrepare, onClose }: Props) {
                 </div>
                 <div aria-live="polite">
                     <h2 id="tour-title">{step.title}</h2>
-                    <p id="tour-body">{step.body}</p>
+                    <p id="tour-body">{keyText(step.body)}</p>
                 </div>
                 <div className="tour-callout-footer">
                     <span className="tour-keys" aria-hidden="true">

@@ -18,6 +18,7 @@ import { createAzureImageHandler } from './azure/azure-image-protocol';
 import { quitAndStopSessions } from './app/quit';
 import { createFileProtocolHandler } from './files/file-protocol';
 import { registerIpc } from './ipc';
+import { isRecordingKeys } from './ipc/keybindings';
 import { migrateLegacyData } from './legacy-migration';
 import { ensureOnboarding } from './onboarding';
 import { createServices } from './services';
@@ -62,7 +63,7 @@ const services = createServices({
     onBrowserInput: (id, input) => browserKey(id, input),
     separateDataFolder: !!separateDataFolder
 });
-const { terminals, browserViews, settings } = services;
+const { terminals, browserViews, settings, keybindings } = services;
 
 /**
  * Opens a main window. Each window shows its own page, so the user can see one view in a window and another view in a
@@ -81,14 +82,23 @@ function createWindow(): BrowserWindow {
         // The workspace keys go to the app before the page gets them. A focused terminal takes all keys, so the menu
         // shortcuts alone do not work in a terminal. preventDefault also stops the menu item, so the action happens once.
         onInput: (window, event, input) => {
-            const action = shortcutAction(input);
+            // Settings › Keyboard records a key. The page gets all keys, except ⌘Q and ⌘H.
+            if (isRecordingKeys(window.webContents.id)) {
+                const fixed = appKeyAction(input, keybindings.keymap());
+                if (fixed === 'quit' || fixed === 'hide') {
+                    event.preventDefault();
+                    runAppKey(fixed);
+                }
+                return;
+            }
+            const action = shortcutAction(input, keybindings.keymap());
             if (action) {
                 event.preventDefault();
                 sendShortcut(action, window);
                 return;
             }
             // A focused terminal takes all keys, so the menu does not get ⌘Q, ⌘, or ⌘H. Run them here.
-            const appAction = appKeyAction(input);
+            const appAction = appKeyAction(input, keybindings.keymap());
             if (appAction) {
                 event.preventDefault();
                 runAppKey(appAction);
@@ -166,12 +176,12 @@ function runAppKey(action: AppKeyAction): void {
  */
 function browserKey(id: string, input: Electron.Input): boolean {
     const window = browserViews.ownerOf(id);
-    const action = shortcutAction(input);
+    const action = shortcutAction(input, keybindings.keymap());
     if (action) {
         sendShortcut(action, window);
         return true;
     }
-    const appAction = appKeyAction(input);
+    const appAction = appKeyAction(input, keybindings.keymap());
     if (appAction) {
         runAppKey(appAction);
         return true;
@@ -194,6 +204,26 @@ function browserKey(id: string, input: Electron.Input): boolean {
         default:
             return false;
     }
+}
+
+/** Builds the macOS menu with the keys of the keymap. */
+function setApplicationMenu(): void {
+    Menu.setApplicationMenu(
+        Menu.buildFromTemplate(
+            menuTemplate(
+                {
+                    openSettings: () => openSettings(),
+                    checkForUpdates,
+                    newWindow: () => void createWindow(),
+                    quitAndStopSessions: () => void quitAndStop(),
+                    sendShortcut,
+                    help: sendHelp,
+                    openUrl: url => void shell.openExternal(url)
+                },
+                keybindings.keymap()
+            )
+        )
+    );
 }
 
 /**
@@ -222,19 +252,15 @@ app.whenReady().then(async () => {
         firstUseTime: () => firstUseTime(app.getPath('userData'))
     }).catch(error => console.error('[onboarding] The first onboarding state was not saved:', error));
     mainWindow.applyAppearance((await settings.get()).appearance);
-    Menu.setApplicationMenu(
-        Menu.buildFromTemplate(
-            menuTemplate({
-                openSettings: () => openSettings(),
-                checkForUpdates,
-                newWindow: () => void createWindow(),
-                quitAndStopSessions: () => void quitAndStop(),
-                sendShortcut,
-                help: sendHelp,
-                openUrl: url => void shell.openExternal(url)
-            })
-        )
-    );
+    // The keybindings file never stops the start. A file that is not valid gives the default keys.
+    await keybindings.load().catch(error => console.error('[keybindings] The file was not read:', error));
+    setApplicationMenu();
+    // A change of the keybindings (from Settings › Keyboard or a text editor) builds the menu again and goes to all pages.
+    keybindings.subscribe(state => {
+        setApplicationMenu();
+        mainWindow.send(IpcChannels.keybindingsChanged, state);
+    });
+    void keybindings.watch().catch(error => console.warn('[keybindings] The file is not watched:', error));
     writeAgentHookFiles(services.hookPaths, services.shellIntegration, join(app.getPath('userData'), 'shell-integration'));
     services.shellAgents.start();
     services.staleShells.start();

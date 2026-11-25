@@ -1,6 +1,7 @@
 import type { MenuItemConstructorOptions } from 'electron';
 import type { HelpAction } from '@shared/onboarding';
-import type { ShortcutAction } from '@shared/shortcuts';
+import { formatAccelerator } from '@shared/key-chords';
+import { DEFAULT_KEYMAP, type KeyCommandId, type Keymap, type ShortcutAction } from '@shared/shortcuts';
 import { PROJECT_URL } from '@shared/star-prompt';
 
 /** The GitHub page of ShipWarden. Its README explains the app. */
@@ -21,20 +22,28 @@ export interface MenuActions {
     openUrl(url: string): void;
 }
 
+/** Returns the accelerator of the first key of a command, or undefined for a command without a key. */
+export function acceleratorOf(keymap: Keymap, id: KeyCommandId): string | undefined {
+    const chord = keymap.keys[id][0];
+    return chord ? formatAccelerator(chord) : undefined;
+}
+
 /**
  * The macOS menu. It is the standard menu, with "Check for Updates" after "About" and "Quit and Stop All Agents" after
  * "Quit". The Help menu opens the welcome page, the tour, the keyboard shortcuts and the GitHub page of ShipWarden.
+ * The keys come from the keymap, so the app builds the menu again after a change of the keybindings.
  */
-export function menuTemplate(actions: MenuActions): MenuItemConstructorOptions[] {
+export function menuTemplate(actions: MenuActions, keymap: Keymap = DEFAULT_KEYMAP): MenuItemConstructorOptions[] {
     const sendShortcut = (action: ShortcutAction) => () => actions.sendShortcut(action);
+    const key = (id: KeyCommandId) => acceleratorOf(keymap, id);
     return [
         {
             role: 'appMenu',
             submenu: [
                 { role: 'about' },
-                { label: 'Check for Updates…', accelerator: 'Shift+Command+U', click: () => actions.checkForUpdates() },
+                { label: 'Check for Updates…', accelerator: key('checkForUpdates'), click: () => actions.checkForUpdates() },
                 { type: 'separator' },
-                { label: 'Settings…', accelerator: 'CommandOrControl+,', click: () => actions.openSettings() },
+                { label: 'Settings…', accelerator: key('settings'), click: () => actions.openSettings() },
                 { type: 'separator' },
                 { role: 'services' },
                 { type: 'separator' },
@@ -44,29 +53,29 @@ export function menuTemplate(actions: MenuActions): MenuItemConstructorOptions[]
                 { type: 'separator' },
                 { role: 'quit', label: 'Quit ShipWarden (Keep Agents Running)' },
                 // macOS gives ⌥⌘Q to its "Quit and Keep Windows" item, so this item uses ⇧⌥⌘Q.
-                { label: 'Quit and Stop All Agents…', accelerator: 'Shift+Alt+Command+Q', click: () => actions.quitAndStopSessions() }
+                { label: 'Quit and Stop All Agents…', accelerator: key('quitAndStop'), click: () => actions.quitAndStopSessions() }
             ]
         },
         {
             label: 'File',
             submenu: [
                 // The same keys as Ghostty. ⌘W closes a pane, so the window closes with ⇧⌘W.
-                { label: 'New Worktree…', accelerator: 'Command+N', click: sendShortcut('newWorktree') },
-                { label: 'New Window', accelerator: 'Shift+Command+N', click: () => actions.newWindow() },
-                { label: 'New Shell Tab', accelerator: 'Command+T', click: sendShortcut('newTab') },
-                { label: 'Split Right', accelerator: 'Command+D', click: sendShortcut('right') },
-                { label: 'Split Down', accelerator: 'Shift+Command+D', click: sendShortcut('down') },
+                { label: 'New Worktree…', accelerator: key('newWorktree'), click: sendShortcut('newWorktree') },
+                { label: 'New Window', accelerator: key('newWindow'), click: () => actions.newWindow() },
+                { label: 'New Shell Tab', accelerator: key('newTab'), click: sendShortcut('newTab') },
+                { label: 'Split Right', accelerator: key('right'), click: sendShortcut('right') },
+                { label: 'Split Down', accelerator: key('down'), click: sendShortcut('down') },
                 { type: 'separator' },
-                { label: 'Select Split Left', accelerator: 'Alt+Command+Left', click: sendShortcut('focusLeft') },
-                { label: 'Select Split Right', accelerator: 'Alt+Command+Right', click: sendShortcut('focusRight') },
-                { label: 'Select Split Above', accelerator: 'Alt+Command+Up', click: sendShortcut('focusUp') },
-                { label: 'Select Split Below', accelerator: 'Alt+Command+Down', click: sendShortcut('focusDown') },
+                { label: 'Select Split Left', accelerator: key('focusLeft'), click: sendShortcut('focusLeft') },
+                { label: 'Select Split Right', accelerator: key('focusRight'), click: sendShortcut('focusRight') },
+                { label: 'Select Split Above', accelerator: key('focusUp'), click: sendShortcut('focusUp') },
+                { label: 'Select Split Below', accelerator: key('focusDown'), click: sendShortcut('focusDown') },
                 { type: 'separator' },
-                { label: 'Copy File Path or Link', accelerator: 'Shift+Command+C', click: sendShortcut('copyFilePath') },
-                { label: 'Reveal File in Finder', accelerator: 'Alt+Command+R', click: sendShortcut('revealFileInFinder') },
-                { label: 'Open in Editor', accelerator: 'Alt+Command+O', click: sendShortcut('openInEditor') },
+                { label: 'Copy File Path or Link', accelerator: key('copyFilePath'), click: sendShortcut('copyFilePath') },
+                { label: 'Reveal File in Finder', accelerator: key('revealFileInFinder'), click: sendShortcut('revealFileInFinder') },
+                { label: 'Open in Editor', accelerator: key('openInEditor'), click: sendShortcut('openInEditor') },
                 { type: 'separator' },
-                { label: 'Close Pane', accelerator: 'Command+W', click: sendShortcut('close') },
+                { label: 'Close Pane', accelerator: key('close'), click: sendShortcut('close') },
                 { role: 'close', label: 'Close Window', accelerator: 'Shift+Command+W' }
             ]
         },
@@ -74,14 +83,14 @@ export function menuTemplate(actions: MenuActions): MenuItemConstructorOptions[]
         {
             label: 'View',
             submenu: [
-                { label: 'Toggle Sidebar', accelerator: 'Command+B', click: sendShortcut('toggleSidebar') },
-                { label: 'Focus Sidebar', accelerator: 'Shift+Command+B', click: sendShortcut('focusSidebar') },
-                { label: 'Toggle Right Panel', accelerator: 'Command+E', click: sendShortcut('toggleRightPanel') },
-                { label: 'Focus File Explorer', accelerator: 'Shift+Command+E', click: sendShortcut('focusExplorer') },
-                { label: 'Search File Contents', accelerator: 'Shift+Command+F', click: sendShortcut('searchContents') },
+                { label: 'Toggle Sidebar', accelerator: key('toggleSidebar'), click: sendShortcut('toggleSidebar') },
+                { label: 'Focus Sidebar', accelerator: key('focusSidebar'), click: sendShortcut('focusSidebar') },
+                { label: 'Toggle Right Panel', accelerator: key('toggleRightPanel'), click: sendShortcut('toggleRightPanel') },
+                { label: 'Focus File Explorer', accelerator: key('focusExplorer'), click: sendShortcut('focusExplorer') },
+                { label: 'Search File Contents', accelerator: key('searchContents'), click: sendShortcut('searchContents') },
                 // ⌘0 stays the key of Actual Size, so this item uses ⇧⌘0.
-                { label: 'Focus Workspace', accelerator: 'Shift+Command+0', click: sendShortcut('focusWorkspace') },
-                { label: 'Command Palette…', accelerator: 'Shift+Command+P', click: sendShortcut('commandPalette') },
+                { label: 'Focus Workspace', accelerator: key('focusWorkspace'), click: sendShortcut('focusWorkspace') },
+                { label: 'Command Palette…', accelerator: key('commandPalette'), click: sendShortcut('commandPalette') },
                 { type: 'separator' },
                 { role: 'reload' },
                 { role: 'forceReload' },
@@ -97,29 +106,29 @@ export function menuTemplate(actions: MenuActions): MenuItemConstructorOptions[]
         {
             label: 'Go',
             submenu: [
-                { label: 'Back', accelerator: 'Command+[', click: sendShortcut('back') },
-                { label: 'Forward', accelerator: 'Command+]', click: sendShortcut('forward') },
+                { label: 'Back', accelerator: key('back'), click: sendShortcut('back') },
+                { label: 'Forward', accelerator: key('forward'), click: sendShortcut('forward') },
                 { type: 'separator' },
-                { label: 'Dashboard', accelerator: 'Alt+Command+1', click: sendShortcut('viewDashboard') },
-                { label: 'Agents', accelerator: 'Alt+Command+2', click: sendShortcut('viewAgents') },
-                { label: 'Tasks', accelerator: 'Alt+Command+3', click: sendShortcut('viewTasks') },
-                { label: 'Review', accelerator: 'Alt+Command+4', click: sendShortcut('viewReview') },
-                { label: 'Pipelines', accelerator: 'Alt+Command+5', click: sendShortcut('viewPipelines') },
-                { label: 'Scratch Pad', accelerator: 'Alt+Command+6', click: sendShortcut('viewNotes') },
-                { label: 'Automations', accelerator: 'Alt+Command+7', click: sendShortcut('viewAutomations') },
+                { label: 'Dashboard', accelerator: key('viewDashboard'), click: sendShortcut('viewDashboard') },
+                { label: 'Agents', accelerator: key('viewAgents'), click: sendShortcut('viewAgents') },
+                { label: 'Tasks', accelerator: key('viewTasks'), click: sendShortcut('viewTasks') },
+                { label: 'Review', accelerator: key('viewReview'), click: sendShortcut('viewReview') },
+                { label: 'Pipelines', accelerator: key('viewPipelines'), click: sendShortcut('viewPipelines') },
+                { label: 'Scratch Pad', accelerator: key('viewNotes'), click: sendShortcut('viewNotes') },
+                { label: 'Automations', accelerator: key('viewAutomations'), click: sendShortcut('viewAutomations') },
                 { type: 'separator' },
                 // ⌃⇧Tab and ⌃Tab also select the previous and the next tab.
-                { label: 'Select Previous Tab', accelerator: 'Shift+Command+[', click: sendShortcut('previousTab') },
-                { label: 'Select Next Tab', accelerator: 'Shift+Command+]', click: sendShortcut('nextTab') },
+                { label: 'Select Previous Tab', accelerator: key('previousTab'), click: sendShortcut('previousTab') },
+                { label: 'Select Next Tab', accelerator: key('nextTab'), click: sendShortcut('nextTab') },
                 {
                     label: 'Select Tab',
                     submenu: [
                         ...([1, 2, 3, 4, 5, 6, 7, 8] as const).map(digit => ({
                             label: `Tab ${digit}`,
-                            accelerator: `Command+${digit}`,
+                            accelerator: key(`selectTab${digit}`),
                             click: sendShortcut(`selectTab${digit}`)
                         })),
-                        { label: 'Last Tab', accelerator: 'Command+9', click: sendShortcut('selectLastTab') }
+                        { label: 'Last Tab', accelerator: key('selectLastTab'), click: sendShortcut('selectLastTab') }
                     ]
                 }
             ]
