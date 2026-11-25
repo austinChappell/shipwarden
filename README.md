@@ -298,6 +298,21 @@ The first dictation asks for the microphone and speech recognition permissions. 
 on the Mac for your language, ShipWarden shows an error and does not use a server. Turn on Dictation in System Settings
 › Keyboard to get the speech model of your language. See [docs/dictation.md](docs/dictation.md).
 
+### Document attachments
+
+Give a PDF, Word, or spreadsheet file to an agent in the chat view. ShipWarden converts the file on your Mac before the
+agent gets it.
+
+- Drop files on the chat, or click the paperclip in the chat field. Each document shows as a chip with a remove button.
+- A PDF, Word (.docx, .doc), RTF, OpenDocument text (.odt), HTML, Excel (.xlsx), CSV, TSV, text, or Markdown file
+  becomes a text file. The prompt tells the agent the path of the text file, and the agent reads it.
+- A PDF without text (a scan) becomes images of its first 5 pages. The agent gets them as image attachments.
+- ShipWarden keeps the first 500,000 characters of a document. The chip of a longer document shows "Cut".
+- Images (PNG, JPEG, GIF, and WebP) go to the agent as images, as a pasted image does.
+
+ShipWarden uses `textutil` and PDFKit of macOS, so it needs no other program. The text files stay in the app data
+folder for 7 days. See [docs/document-attachments.md](docs/document-attachments.md).
+
 ### ShipWarden MCP server
 
 Agents can ask ShipWarden and each other for help, work on their pull requests, and test their changes in the browser,

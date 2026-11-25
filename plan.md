@@ -448,6 +448,18 @@ tests cover the line parser, the session states with a fake helper, the service,
 
 Let the chat view take PDF, Word, and spreadsheet files. Convert them to text or images before they go to the agent.
 
+**Status:** Done in branch `5.6-document-attachments`. The chat field has a paperclip button and takes dropped files.
+Each document shows as a chip with a remove button and a spinner while it converts. The main process converts the file
+(`main/documents`): Word, RTF, ODT, and HTML with `textutil`, a PDF with PDFKit in a JXA script (`osascript -l
+JavaScript`), an .xlsx file with a small zip and XML reader on `zlib`, and CSV, TSV, text, and Markdown as they are. No
+native helper and no npm package. The text goes to `<app data>/attachments/<id>/<name>.txt`, and the prompt gives the
+agent the path. A PDF without a text layer gives PNG images of its first 5 pages, and the chat pastes them as images.
+Limits: 50 MB for each file, 500,000 characters for each text ("Cut" on the chip and a note), and 10 documents for each
+prompt. Old .xls, Numbers, Pages, and Keynote files show an error. Unit tests cover the dispatch by type, the xlsx
+reader with a zip fixture, the caps, the PDF fallback with a fake tool, and the prompt text. The real `textutil` and
+PDFKit script were run one time on this Mac. Not tested live in the app: the drop, the picker, and the agents reading
+the files.
+
 ## Later
 
 - **Linux, Windows, and Intel Mac builds.** Do this when users ask for it. The PTY host and the helper use launchd today

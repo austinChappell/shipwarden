@@ -1,6 +1,7 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import { countImageMarks, bracketedPaste } from '@shared/agent-text';
 import { unsettledPrompts } from '@shared/chat-sent';
+import { type ConvertedDocument, documentPrompt } from '@shared/documents';
 import { screenTextOf } from '../app/use-agent-actions';
 import { errorText } from '../util';
 import { agentStateStore } from './agent-state-store';
@@ -19,15 +20,29 @@ const IMAGE_CHECK_MS = 150;
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-/** A prompt of the chat: text and pasted images as data URLs. */
+/** A document in the prompt box: converting, or ready for the next prompt. */
+export interface AttachedDocument {
+    id: string;
+    name: string;
+    /** Undefined while the main process converts the file. */
+    document?: ConvertedDocument;
+}
+
+/** A prompt of the chat: the text of the user, pasted images as data URLs, and converted documents. */
 export interface ChatPrompt {
     id: string;
     text: string;
     images: string[];
+    documents: ConvertedDocument[];
 }
 
 /** A prompt that went to the agent. The chat shows it as pending until the transcript has it. */
-export interface SentPrompt extends ChatPrompt {
+export interface SentPrompt {
+    id: string;
+    /** The full text for the agent, with the list of the documents (see `documentPrompt`). */
+    text: string;
+    /** All images for the agent, with the page images of a PDF without text. */
+    images: string[];
     /** The number of user prompts in the transcript before this prompt. */
     users: number;
 }
@@ -38,6 +53,8 @@ export interface ChatInput {
     draft: string;
     /** The images that the user pasted for the next prompt, as data URLs. */
     images: string[];
+    /** The documents for the next prompt. The agent gets the path of the text file of each document. */
+    documents: AttachedDocument[];
     /** The prompts that wait for the end of the turn of the agent, oldest first. */
     queue: ChatPrompt[];
     /** The prompts that went to the agent, but are not in the transcript yet. */
@@ -47,7 +64,7 @@ export interface ChatInput {
     error?: string;
 }
 
-const EMPTY: ChatInput = { draft: '', images: [], queue: [], sent: [], sending: false };
+const EMPTY: ChatInput = { draft: '', images: [], documents: [], queue: [], sent: [], sending: false };
 
 /**
  * The prompt boxes of the agent tabs, by session ID. The data stays when the chat closes, for example when the user
@@ -93,6 +110,23 @@ export function removeChatImage(id: string, index: number): void {
     change(id, input => ({ ...input, images: input.images.filter((_, item) => item !== index) }));
 }
 
+/** Adds a document chip that is converting. Returns the ID of the chip. */
+export function addChatDocument(id: string, name: string): string {
+    nextId += 1;
+    const documentId = `d${nextId}`;
+    change(id, input => ({ ...input, documents: [...input.documents, { id: documentId, name }] }));
+    return documentId;
+}
+
+/** Sets the converted document of a chip. The chip is ready for the next prompt after this. */
+export function setChatDocument(id: string, documentId: string, document: ConvertedDocument): void {
+    change(id, input => ({ ...input, documents: input.documents.map(item => (item.id === documentId ? { ...item, document } : item)) }));
+}
+
+export function removeChatDocument(id: string, documentId: string): void {
+    change(id, input => ({ ...input, documents: input.documents.filter(item => item.id !== documentId) }));
+}
+
 export function clearChatError(id: string): void {
     change(id, input => ({ ...input, error: undefined }));
 }
@@ -110,14 +144,19 @@ export function removeQueuedPrompt(id: string, promptId: string): void {
     change(id, input => ({ ...input, queue: input.queue.filter(prompt => prompt.id !== promptId) }));
 }
 
-/** Takes the text and the images of the prompt box. Returns undefined when the box is empty. */
+/**
+ * Takes the text, the images, and the documents of the prompt box. Returns undefined when the box is empty or when a
+ * document is converting.
+ */
 function takeDraft(id: string): ChatPrompt | undefined {
     const input = get(id);
     const text = input.draft.trim();
-    if (!text && input.images.length === 0) return undefined;
-    change(id, current => ({ ...current, draft: '', images: [] }));
+    if (input.documents.some(item => !item.document)) return undefined;
+    const documents = input.documents.flatMap(item => (item.document ? [item.document] : []));
+    if (!text && input.images.length === 0 && documents.length === 0) return undefined;
+    change(id, current => ({ ...current, draft: '', images: [], documents: [] }));
     nextId += 1;
-    return { id: `p${nextId}`, text, images: input.images };
+    return { id: `p${nextId}`, text, images: input.images, documents };
 }
 
 /** Puts the prompt of the box in the queue. The queue sends it when the agent ends its turn. */
@@ -152,15 +191,23 @@ export function sendQueue(id: string, transcriptFile: string): Promise<void> {
 }
 
 /**
- * Gives prompts to the agent as one prompt: the images one after the other, then the text, then Enter. When the send
- * fails, the text and the images go back to the prompt box, and the chat shows the error.
+ * Gives prompts to the agent as one prompt: the images one after the other, then the text, then Enter. The page images
+ * of a PDF without text go with the images. The text of each prompt starts with the list of its documents (see
+ * `documentPrompt`). When the send fails, the text, the images, and the documents go back to the prompt box, and the
+ * chat shows the error.
  */
 function send(id: string, prompts: ChatPrompt[], transcriptFile: string): Promise<void> {
     const text = prompts
+        .map(prompt => documentPrompt(prompt.documents, prompt.text))
+        .filter(Boolean)
+        .join('\n\n');
+    const userText = prompts
         .map(prompt => prompt.text)
         .filter(Boolean)
         .join('\n\n');
-    const images = prompts.flatMap(prompt => prompt.images);
+    const userImages = prompts.flatMap(prompt => prompt.images);
+    const documents = prompts.flatMap(prompt => prompt.documents);
+    const images = [...userImages, ...documents.flatMap(document => (document.kind === 'images' ? document.images : []))];
     const previous = chains.get(id) ?? Promise.resolve();
     const next = previous.then(async () => {
         const users = transcriptStore.get(transcriptFile).items.filter(item => item.kind === 'user').length;
@@ -180,8 +227,9 @@ function send(id: string, prompts: ChatPrompt[], transcriptFile: string): Promis
                 ...input,
                 sending: false,
                 sent: input.sent.filter(prompt => prompt !== sent),
-                draft: [text, input.draft].filter(Boolean).join('\n\n'),
-                images: [...images, ...input.images],
+                draft: [userText, input.draft].filter(Boolean).join('\n\n'),
+                images: [...userImages, ...input.images],
+                documents: [...documents.map(document => ({ id: `d${++nextId}`, name: document.name, document })), ...input.documents],
                 error: `${errorText(err)} The prompt did not go to the agent. The prompt in the terminal can have some of the images. Remove them there, or try again.`
             }));
         }

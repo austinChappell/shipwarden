@@ -1,23 +1,27 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react';
-import { ArrowUp, CircleAlert, CircleCheck, LoaderCircle, MessagesSquare, Square, SquareTerminal, X } from 'lucide-react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react';
+import { ArrowUp, CircleAlert, CircleCheck, FileText, LoaderCircle, MessagesSquare, Paperclip, Square, SquareTerminal, X } from 'lucide-react';
 import { CHAT_AGENT_NAMES, type ChatItem, type ChatToolItem, chatFormatOf } from '@shared/agent-chat';
 import { isImageOnlyPaste } from '@shared/shortcuts';
 import { insertDictatedText } from '@shared/dictation';
+import { attachmentKindOf, MAX_DOCUMENTS, truncationNote, unsupportedFileText } from '@shared/documents';
 import type { TerminalSession } from '@shared/terminal';
 import { showsAgentDialog } from '@shared/agent-text';
-import { formatDuration } from '../util';
+import { errorText, formatDuration } from '../util';
 import { screenTextOf } from '../app/use-agent-actions';
 import { agentViewStore } from '../terminal/agent-view-store';
 import { useTranscript } from '../terminal/transcript-store';
 import {
+    addChatDocument,
     addChatImage,
     clearChatError,
     queueChatPrompt,
+    removeChatDocument,
     removeChatImage,
     removeQueuedPrompt,
     sendChatPrompt,
     sendQueue,
     sendQueuedPromptNow,
+    setChatDocument,
     setChatDraft,
     settleSentPrompts,
     useChatInput
@@ -31,6 +35,29 @@ import { DictationBar, DictationButton } from '../dictation/Dictation';
 import { dictationStore } from '../dictation/dictation-store';
 
 const api = window.shipwarden;
+
+/** A file that the user dropped, pasted, or chose. `file` is set for a dropped or pasted file. */
+interface IncomingFile {
+    name: string;
+    /** The absolute path. It is empty for a pasted file without a path, for example an image from a web page. */
+    path: string;
+    file?: File;
+}
+
+/** Reads a browser file as a data URL. */
+function readDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => (typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('ShipWarden cannot read the image.')));
+        reader.onerror = () => reject(new Error('ShipWarden cannot read the image.'));
+        reader.readAsDataURL(file);
+    });
+}
+
+/** Returns the files of a drop or a paste, with their paths. */
+function incomingFiles(files: FileList): IncomingFile[] {
+    return [...files].map(file => ({ name: file.name, path: api.files.pathForFile(file), file }));
+}
 
 /** After this time in the state "starting", the chat tells the user that the terminal can show a problem. */
 const SLOW_START_MS = 20_000;
@@ -167,7 +194,11 @@ export function ChatView({ session, focused = true }: Props) {
      * chat closes. The previews use data URLs, because the content security policy of the page blocks blob URLs.
      */
     const input = useChatInput(session.id);
-    const { draft, images, queue, sent, sending } = input;
+    const { draft, images, documents, queue, sent, sending } = input;
+    /** The error of the last attachment, for example a file type that the chat cannot attach. */
+    const [attachError, setAttachError] = useState<string>();
+    /** True while the user drags files over the chat. */
+    const [dragging, setDragging] = useState(false);
     const pending = sent.length > 0;
     const transcript = useTranscript(file, working || starting || waiting || pending, `${state}:${session.agentStateAt ?? 0}`);
     const listRef = useRef<HTMLDivElement>(null);
@@ -239,29 +270,109 @@ export function ChatView({ session, focused = true }: Props) {
         input.style.height = `${input.scrollHeight}px`;
     }, [draft]);
 
+    const converting = documents.some(item => !item.document);
+    const readyDocuments = documents.flatMap(item => (item.document ? [item.document] : []));
+    const canSend = (draft.trim() !== '' || images.length > 0 || readyDocuments.length > 0) && !waiting && !converting;
+
     /**
      * Sends the prompt of the box. While the agent starts or works, the prompt goes in the queue, and the queue sends
      * it when the agent ends its turn.
      */
     const send = () => {
-        if ((!draft.trim() && images.length === 0) || waiting) return;
+        if (!canSend) return;
+        setAttachError(undefined);
         stick.current = true;
         if (ready && queue.length === 0 && !sending) void sendChatPrompt(session.id, agentName, file);
         else queueChatPrompt(session.id, agentName);
     };
 
-    /** A paste of only an image adds the image to the next prompt. A paste with text pastes the text in the field. */
+    /** Converts one document and shows it as a chip. A failure removes the chip and shows the error. */
+    const attachDocument = async (name: string, path: string) => {
+        if (!path) {
+            setAttachError(`ShipWarden cannot find the file "${name}" on the Mac. Save the file, then attach it again.`);
+            return;
+        }
+        const id = session.id;
+        const documentId = addChatDocument(id, name);
+        try {
+            const result = await api.documents.convert(path);
+            if (result.ok) setChatDocument(id, documentId, result.document);
+            else {
+                removeChatDocument(id, documentId);
+                setAttachError(result.error);
+            }
+        } catch (err) {
+            removeChatDocument(id, documentId);
+            setAttachError(errorText(err));
+        }
+    };
+
+    /** Adds dropped, pasted, or chosen files to the next prompt: images as images, and documents as text files. */
+    const attachFiles = async (files: readonly IncomingFile[]) => {
+        setAttachError(undefined);
+        let room = MAX_DOCUMENTS - documents.length;
+        for (const incoming of files) {
+            const kind = attachmentKindOf(incoming.name, incoming.file?.type);
+            if (kind === 'unsupported') {
+                setAttachError(unsupportedFileText(incoming.name));
+            } else if (kind === 'document') {
+                if (room <= 0) {
+                    setAttachError(`A prompt can have ${MAX_DOCUMENTS} documents. Send the prompt, then attach more documents.`);
+                    continue;
+                }
+                room -= 1;
+                void attachDocument(incoming.name, incoming.path);
+            } else {
+                try {
+                    const url = incoming.file ? await readDataUrl(incoming.file) : await api.documents.readImage(incoming.path);
+                    addChatImage(session.id, url);
+                } catch (err) {
+                    setAttachError(errorText(err));
+                }
+            }
+        }
+    };
+
+    const chooseFiles = async () => {
+        const paths = await api.documents.choose();
+        await attachFiles(paths.map(path => ({ name: path.slice(path.lastIndexOf('/') + 1), path })));
+    };
+
+    /**
+     * A paste of only files adds them to the next prompt: an image as an image, and a document as a text file. A paste
+     * with text pastes the text in the field.
+     */
     const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
         const data = event.clipboardData;
         if (!isImageOnlyPaste([...data.types], data.getData('text/plain'))) return;
         event.preventDefault();
-        const file = [...data.files].find(item => item.type.startsWith('image/'));
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-            if (typeof reader.result === 'string') addChatImage(session.id, reader.result);
-        };
-        reader.readAsDataURL(file);
+        const files = incomingFiles(data.files);
+        // A copied file from Finder has a path. A pasted image from a web page or a screenshot has none.
+        const withPath = files.filter(item => item.path);
+        if (withPath.length > 0) {
+            void attachFiles(withPath);
+            return;
+        }
+        const image = files.find(item => item.file?.type.startsWith('image/'));
+        if (image) void attachFiles([image]);
+    };
+
+    const hasFiles = (event: DragEvent) => event.dataTransfer.types.includes('Files');
+
+    const onDragOver = (event: DragEvent<HTMLDivElement>) => {
+        if (!hasFiles(event)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'copy';
+        setDragging(true);
+    };
+
+    const onDrop = (event: DragEvent<HTMLDivElement>) => {
+        if (!hasFiles(event)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setDragging(false);
+        void attachFiles(incomingFiles(event.dataTransfer.files));
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -281,7 +392,16 @@ export function ChatView({ session, focused = true }: Props) {
     const done = (state === 'idle' || state === 'done') && !pending ? doneText(transcript.items, session.agentStateAt) : undefined;
 
     return (
-        <div className="chat-view" data-dictation-session={session.id}>
+        <div
+            className={cx('chat-view', dragging && 'dragging-files')}
+            data-dictation-session={session.id}
+            onDragOver={onDragOver}
+            onDragLeave={event => {
+                // The pointer left the chat, not only a child element of the chat.
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
+            }}
+            onDrop={onDrop}
+        >
             {findBar}
             <div
                 className="chat-list"
@@ -370,6 +490,13 @@ export function ChatView({ session, focused = true }: Props) {
                     <IconButton icon={<X size={14} strokeWidth={1.8} />} label="Close the message" onClick={() => clearChatError(session.id)} />
                 </div>
             )}
+            {attachError && (
+                <div className="chat-waiting error" role="alert">
+                    <CircleAlert size={14} strokeWidth={1.8} className="chat-waiting-icon" />
+                    <span className="chat-waiting-text">{attachError}</span>
+                    <IconButton icon={<X size={14} strokeWidth={1.8} />} label="Close the message" onClick={() => setAttachError(undefined)} />
+                </div>
+            )}
             <DictationBar sessionId={session.id} />
             <form
                 className="chat-composer"
@@ -384,8 +511,7 @@ export function ChatView({ session, focused = true }: Props) {
                         {queue.map(prompt => (
                             <li key={prompt.id} className="chat-queued">
                                 <span className="chat-queued-text">
-                                    {prompt.text || pluralImages(prompt.images.length)}
-                                    {prompt.text && prompt.images.length > 0 && ` · ${pluralImages(prompt.images.length)}`}
+                                    {[prompt.text, ...attachmentCounts(prompt.images.length, prompt.documents.length)].filter(Boolean).join(' · ')}
                                 </span>
                                 <Button size="sm" disabled={waiting} onClick={() => void sendQueuedPromptNow(session.id, prompt.id, file)}>
                                     Send now
@@ -420,6 +546,42 @@ export function ChatView({ session, focused = true }: Props) {
                         ))}
                     </div>
                 )}
+                {documents.length > 0 && (
+                    <div className="chat-documents">
+                        {documents.map(item => {
+                            const note = item.document && truncationNote(item.document);
+                            return (
+                                <span key={item.id} className="chat-document" title={note ? `${item.name}: ${note}` : item.name}>
+                                    {item.document ? (
+                                        <FileText size={12} strokeWidth={1.8} aria-hidden="true" />
+                                    ) : (
+                                        <LoaderCircle size={12} strokeWidth={2} className="spin" aria-label="Converting" />
+                                    )}
+                                    <span className="chat-document-name">{item.name}</span>
+                                    {note && <span className="chat-document-cut">Cut</span>}
+                                    <button
+                                        type="button"
+                                        className="chat-document-remove"
+                                        title="Remove"
+                                        aria-label={`Remove ${item.name}`}
+                                        disabled={sending}
+                                        onClick={() => removeChatDocument(session.id, item.id)}
+                                    >
+                                        <X size={11} strokeWidth={2.4} />
+                                    </button>
+                                </span>
+                            );
+                        })}
+                    </div>
+                )}
+                {readyDocuments.some(item => item.truncated) && (
+                    <p className="chat-document-notes">
+                        {readyDocuments
+                            .filter(item => item.truncated)
+                            .map(item => `${item.name}: ${truncationNote(item)}`)
+                            .join(' ')}
+                    </p>
+                )}
                 <textarea
                     ref={inputRef}
                     className="chat-input"
@@ -445,13 +607,19 @@ export function ChatView({ session, focused = true }: Props) {
                         onClick={() => agentViewStore.set(session.id, 'terminal')}
                     />
                     {working && <IconButton icon={<Square size={12} strokeWidth={2} />} label="Stop the agent (Escape in the terminal)" onClick={stop} />}
+                    <IconButton
+                        icon={<Paperclip size={14} strokeWidth={1.6} />}
+                        label="Attach files: PDF, Word, spreadsheets, and images"
+                        disabled={sending}
+                        onClick={() => void chooseFiles()}
+                    />
                     <DictationButton sessionId={session.id} />
                     <IconButton
                         type="submit"
                         variant="outline"
                         icon={<ArrowUp size={14} strokeWidth={2} />}
-                        label={ready && queue.length === 0 ? 'Send' : 'Add to the queue'}
-                        disabled={(!draft.trim() && images.length === 0) || waiting}
+                        label={converting ? 'Converting the documents' : ready && queue.length === 0 ? 'Send' : 'Add to the queue'}
+                        disabled={!canSend}
                     />
                 </div>
             </form>
@@ -459,6 +627,10 @@ export function ChatView({ session, focused = true }: Props) {
     );
 }
 
-function pluralImages(count: number): string {
-    return count === 1 ? '1 image' : `${count} images`;
+/** Returns the counts of the attachments of a queued prompt, for example ["2 images", "1 document"]. */
+function attachmentCounts(images: number, documents: number): string[] {
+    const counts: string[] = [];
+    if (images > 0) counts.push(images === 1 ? '1 image' : `${images} images`);
+    if (documents > 0) counts.push(documents === 1 ? '1 document' : `${documents} documents`);
+    return counts;
 }

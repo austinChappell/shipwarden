@@ -29,6 +29,7 @@ import { pendingRemoteRuns } from '@shared/automation-engine';
 import { PromptStore } from './prompts/prompt-store';
 import { KeybindingStore } from './keybindings/keybinding-store';
 import { DICTATION_HELPER_NAME, DictationService } from './dictation/dictation-service';
+import { DocumentConverter } from './documents/document-converter';
 import { KEYBINDINGS_FILE_NAME } from '@shared/keybindings';
 import { PlanStore } from './plans/plan-store';
 import { Coordinators } from './coordinator/coordinators';
@@ -363,6 +364,8 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
             : join(app.getAppPath(), 'native', 'build', DICTATION_HELPER_NAME),
         packaged: app.isPackaged
     });
+    /** Converts the documents of the chat view. The agent reads the text files in this folder. */
+    const documents = new DocumentConverter({ folder: join(userData, 'attachments') });
     const ptyHostLog = join(userData, 'pty-host.log');
 
     /**
@@ -825,6 +828,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         prompts,
         keybindings,
         dictation,
+        documents,
         ptyHostLog,
         terminalSizes,
         remote,

@@ -934,6 +934,78 @@ button {
     cursor: default;
 }
 
+/* The documents of the next prompt: one 24 px chip for each document, with a remove button. */
+.chat-documents {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+    padding: 4px 0 2px;
+}
+
+.chat-document {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 260px;
+    height: var(--control-height-sm);
+    padding: 0 3px 0 8px;
+    border-radius: var(--control-radius);
+    background: var(--tone-neutral-bg);
+    color: var(--text);
+    font-size: 12px;
+}
+
+.chat-document-name {
+    overflow: hidden;
+    min-width: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chat-document-cut {
+    flex: none;
+    color: var(--tone-warning-text);
+    font-weight: 500;
+}
+
+.chat-document-remove {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.chat-document-remove:hover {
+    background: var(--hover);
+    color: var(--text-strong);
+}
+
+.chat-document-remove:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.chat-document-notes {
+    width: 100%;
+    margin: 0;
+    color: var(--tone-warning-text);
+    font-size: 12px;
+}
+
+/* Files over the chat: the composer shows where they go. */
+.chat-view.dragging-files .chat-composer {
+    border-color: var(--focus-ring);
+    border-style: dashed;
+}
+
 .chat-agent {
     color: var(--text);
 }
