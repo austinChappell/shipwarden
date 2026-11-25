@@ -20,10 +20,7 @@ interface Props {
     /** The state and the actions of the selected task. */
     state: ReturnType<typeof useTaskDetail>;
     worktreeFor(task: Task): string | undefined;
-    repos: string[];
     repoGroups: RepoGroup[];
-    startRepo: string;
-    chooseStartRepo(repo: string): void;
     repoLabel(repo: string): string;
     onOpenWorktree(path: string): void;
     onStartTask(task: Task, connectionId: string, pluginId: string, repo: string): Promise<void>;
@@ -47,10 +44,7 @@ export function TaskDetails({
     selectedId,
     state,
     worktreeFor,
-    repos,
     repoGroups,
-    startRepo,
-    chooseStartRepo,
     repoLabel,
     onOpenWorktree,
     onStartTask,
@@ -93,14 +87,12 @@ export function TaskDetails({
                     <TaskTitle key={detail.id} title={detail.title} editable={!!editable.title} busy={busy} onSave={state.saveTitle} />
 
                     <TaskActions
+                        key={detail.id}
                         task={detail}
                         source={source}
                         busy={busy}
                         worktree={worktreeFor(detail)}
-                        repos={repos}
                         repoGroups={repoGroups}
-                        startRepo={startRepo}
-                        chooseStartRepo={chooseStartRepo}
                         repoLabel={repoLabel}
                         onOpenWorktree={onOpenWorktree}
                         onStartTask={onStartTask}

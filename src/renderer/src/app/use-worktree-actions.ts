@@ -626,10 +626,10 @@ export function useWorktreeActions(options: Options) {
     };
 
     /**
-     * Shows a worktree from the Tasks view. When the worktree is in another project, that project becomes active first,
+     * Shows a worktree of any project. When the worktree is in another project, that project becomes active first,
      * so the worktree is in the sidebar.
      */
-    const showTaskWorktree = async (path: string) => {
+    const showAnyWorktree = async (path: string) => {
         if (!options.worktrees.some(worktree => worktree.path === path)) {
             const byRepo = await allWorktreesByRepo();
             const owner = options.projects?.projects.find(project => project.repos.some(repo => byRepo[repo]?.some(worktree => worktree.path === path)));
@@ -707,7 +707,7 @@ export function useWorktreeActions(options: Options) {
         linkTask,
         unlinkTask,
         chooseWorktreeForTask,
-        showTaskWorktree,
+        showAnyWorktree,
         worktreeMenu
     };
 }
