@@ -700,6 +700,11 @@ export interface CheckRun {
      * of its run, or from an older run that a newer run of the same workflow replaces.
      */
     waitingForRerun?: boolean;
+    /**
+     * The ID of the newer run that replaces the run of this check. The newer run has the same workflow and event. The
+     * check is old and waits for the job of the newer run. The job graph shows the check in the graph of the newer run.
+     */
+    newerRunId?: number;
 }
 
 /** A step of a GitHub Actions job. */

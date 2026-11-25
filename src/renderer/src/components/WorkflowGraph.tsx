@@ -90,12 +90,16 @@ function RunGraph({
     );
 }
 
-/** Returns the GitHub Actions checks of each workflow run. Other checks have no graph. */
+/**
+ * Returns the GitHub Actions checks of each workflow run. Other checks have no graph. An old check of a replaced run
+ * goes into the newer run, so that one workflow has one graph.
+ */
 export function checksByRun(checks: readonly CheckRun[] | undefined): Map<number, CheckRun[]> {
     const byRun = new Map<number, CheckRun[]>();
     for (const check of checks ?? []) {
-        if (!check.isActions || check.runId === undefined) continue;
-        byRun.set(check.runId, [...(byRun.get(check.runId) ?? []), check]);
+        const runId = check.newerRunId ?? check.runId;
+        if (!check.isActions || runId === undefined) continue;
+        byRun.set(runId, [...(byRun.get(runId) ?? []), check]);
     }
     return byRun;
 }

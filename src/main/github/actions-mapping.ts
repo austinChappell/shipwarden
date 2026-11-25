@@ -214,7 +214,7 @@ export function markOldAttempts(checks: CheckRun[], runs: readonly RunAttempt[])
         if (check.runId === undefined) return [check];
         const newer = replaced.get(check.runId);
         if (newer) {
-            return newer.status === 'completed' ? [] : [waitForNewResult(check)];
+            return newer.status === 'completed' ? [] : [{ ...waitForNewResult(check), newerRunId: newer.id }];
         }
         const start = attemptStart.get(check.runId);
         if (start === undefined || !mayBeOldAttempt(check) || !check.completedAt || Date.parse(check.completedAt) >= start) {
