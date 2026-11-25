@@ -74,12 +74,12 @@ export class ProjectStore {
         return this.save(setActiveProject(await this.get(), id));
     }
 
-    /** Adds the repository that contains the folder to a project. Throws an error when the folder is not in a git repository. */
+    /**
+     * Adds the repository that contains the folder to a project. A folder that is not in a git repository goes into the
+     * project as it is. Throws an error when the path is not a folder.
+     */
     async addRepo(id: string, folder: string): Promise<ProjectsState> {
-        const root = await mainWorktreeRoot(folder);
-        if (!root) {
-            throw new Error(`The folder "${folder}" is not in a git repository.`);
-        }
+        const root = (await mainWorktreeRoot(folder)) ?? (await plainFolder(folder));
         return this.save(addRepo(await this.get(), id, root));
     }
 
@@ -109,6 +109,15 @@ async function readLegacyRepo(file: string): Promise<string | undefined> {
     } catch {
         return undefined;
     }
+}
+
+/** Returns the real path of a folder without git. Throws an error when the path is not a folder. */
+async function plainFolder(folder: string): Promise<string> {
+    const real = await fs.realpath(folder).catch(() => undefined);
+    if (!real || !(await fs.stat(real)).isDirectory()) {
+        throw new Error(`The folder "${folder}" does not exist.`);
+    }
+    return real;
 }
 
 /**

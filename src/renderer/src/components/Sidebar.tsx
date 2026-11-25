@@ -459,6 +459,8 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
         !parent.pipelinesActive &&
         shown.some(worktree => worktree.path === selectedPath);
     const color = parent.repoColor(repo);
+    /** True for a folder without git. It has no worktrees, branches or commit graph. */
+    const noGit = shown.some(worktree => worktree.noGit);
     const runningInRepo = collapsed && sessions.some(session => runsAgent(session) && shown.some(worktree => worktree.path === session.worktreePath));
     const repoPorts = collapsed ? [...new Set(shown.flatMap(worktree => (ports[worktree.path] ?? []).map(item => item.port)))].sort((a, b) => a - b) : [];
 
@@ -525,6 +527,8 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                             </button>
                         ) : named ? (
                             (worktree.branch ?? basename(worktree.path))
+                        ) : worktree.noGit ? (
+                            'folder without git'
                         ) : worktree.isMain ? (
                             'main worktree'
                         ) : (
@@ -602,41 +606,45 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                     ) : (
                         <Count value={total} label={pluralize(total, 'worktree')} />
                     ))}
-                <IconButton
-                    size="sm"
-                    className="repo-action"
-                    icon={<Plus size={14} strokeWidth={1.75} />}
-                    label="New worktree"
-                    onClick={event => {
-                        event.stopPropagation();
-                        if (collapsed) {
-                            onToggle();
-                        }
-                        setCreating(true);
-                    }}
-                />
-                <IconButton
-                    size="sm"
-                    className="repo-action"
-                    active={parent.graphRepo === repo}
-                    icon={<GitGraph size={14} strokeWidth={1.6} />}
-                    label="Commit graph"
-                    onClick={event => {
-                        event.stopPropagation();
-                        parent.onOpenGraph(repo);
-                    }}
-                />
-                <IconButton
-                    size="sm"
-                    className="repo-action"
-                    active={parent.branchesRepo === repo}
-                    icon={<GitBranch size={14} strokeWidth={1.6} />}
-                    label="Branches"
-                    onClick={event => {
-                        event.stopPropagation();
-                        parent.onOpenBranches(repo);
-                    }}
-                />
+                {!noGit && (
+                    <>
+                        <IconButton
+                            size="sm"
+                            className="repo-action"
+                            icon={<Plus size={14} strokeWidth={1.75} />}
+                            label="New worktree"
+                            onClick={event => {
+                                event.stopPropagation();
+                                if (collapsed) {
+                                    onToggle();
+                                }
+                                setCreating(true);
+                            }}
+                        />
+                        <IconButton
+                            size="sm"
+                            className="repo-action"
+                            active={parent.graphRepo === repo}
+                            icon={<GitGraph size={14} strokeWidth={1.6} />}
+                            label="Commit graph"
+                            onClick={event => {
+                                event.stopPropagation();
+                                parent.onOpenGraph(repo);
+                            }}
+                        />
+                        <IconButton
+                            size="sm"
+                            className="repo-action"
+                            active={parent.branchesRepo === repo}
+                            icon={<GitBranch size={14} strokeWidth={1.6} />}
+                            label="Branches"
+                            onClick={event => {
+                                event.stopPropagation();
+                                parent.onOpenBranches(repo);
+                            }}
+                        />
+                    </>
+                )}
                 <IconButton
                     size="sm"
                     className="repo-action"
@@ -659,7 +667,7 @@ function RepoGroup({ repo, collapsed, onToggle, parent, worktrees, hidden, now, 
                 />
             </div>
 
-            {creating && (
+            {creating && !noGit && (
                 <NewWorktreeDialog
                     repoName={parent.repoLabel(repo)}
                     repoPath={repo}
@@ -844,7 +852,12 @@ export function Sidebar(outerProps: Props) {
                     label="Clone a repository into this project"
                     onClick={props.onCloneRepo}
                 />
-                <IconButton size="sm" icon={<FolderPlus size={14} strokeWidth={1.6} />} label="Add a repository to this project" onClick={props.onAddRepo} />
+                <IconButton
+                    size="sm"
+                    icon={<FolderPlus size={14} strokeWidth={1.6} />}
+                    label="Add a repository or a folder to this project"
+                    onClick={props.onAddRepo}
+                />
             </div>
 
             {props.repos.length > 0 && (

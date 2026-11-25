@@ -1,4 +1,7 @@
-/** One git worktree of a repository. */
+/**
+ * One git worktree of a repository. A project folder without git also gives one worktree: the folder itself, with
+ * `noGit` set. Such a folder has no branches, no other worktrees and no git changes.
+ */
 export interface Worktree {
     /** The absolute path of the worktree folder. */
     path: string;
@@ -11,6 +14,8 @@ export interface Worktree {
     isBare: boolean;
     locked: boolean;
     prunable: boolean;
+    /** True when the folder is not in a git repository. Then the git features do not apply. */
+    noGit?: boolean;
     /** The time in milliseconds when git made the worktree. The main worktree uses the time of its .git folder. */
     createdAt?: number;
     /**

@@ -53,10 +53,35 @@ async function mtime(file: string): Promise<number | undefined> {
 
 /** Lists, creates and removes git worktrees with the git command line. */
 export class GitWorktreeService {
-    /** Returns all worktrees of the repository. The main worktree is first. */
+    /**
+     * Returns all worktrees of the repository. The main worktree is first.
+     * A folder that is not in a git repository gives one worktree with `noGit`: the folder itself.
+     */
     async list(repoPath: string): Promise<Worktree[]> {
-        const output = await this.git(repoPath, ['worktree', 'list', '--porcelain']);
-        return parseWorktreePorcelain(output);
+        try {
+            const output = await this.git(repoPath, ['worktree', 'list', '--porcelain']);
+            return parseWorktreePorcelain(output);
+        } catch (error) {
+            if (await this.isPlainFolder(repoPath)) {
+                return [{ path: repoPath, head: '', isMain: true, isBare: false, locked: false, prunable: false, noGit: true }];
+            }
+            throw error;
+        }
+    }
+
+    /** Returns true when the path is a folder that is not in a git repository. */
+    private async isPlainFolder(folder: string): Promise<boolean> {
+        try {
+            if (!(await fs.stat(folder)).isDirectory()) return false;
+        } catch {
+            return false;
+        }
+        try {
+            await this.git(folder, ['rev-parse', '--git-dir']);
+            return false;
+        } catch {
+            return true;
+        }
     }
 
     /**
@@ -102,9 +127,11 @@ export class GitWorktreeService {
      */
     async create(options: CreateWorktreeOptions, parentFolder?: string, onStep?: (step: 'fetch' | 'checkout') => void): Promise<Worktree> {
         const branch = options.branch.trim();
-        await this.git(options.repoPath, ['check-ref-format', '--branch', branch]);
-
         const main = (await this.list(options.repoPath)).find(worktree => worktree.isMain);
+        if (main?.noGit) {
+            throw new Error(`The folder "${options.repoPath}" is not a git repository. A worktree needs git.`);
+        }
+        await this.git(options.repoPath, ['check-ref-format', '--branch', branch]);
         if (!main) {
             throw new Error(`ShipWarden cannot find the main worktree of the repository at "${options.repoPath}".`);
         }

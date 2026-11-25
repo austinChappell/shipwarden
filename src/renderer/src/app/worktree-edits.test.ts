@@ -160,6 +160,19 @@ describe('worktreeMenuItems', () => {
         ]);
     });
 
+    it('leaves out the git items for a folder without git', () => {
+        expect(ids(worktreeMenuItems(worktree({ isMain: true, noGit: true }), undefined, false, undefined, 0))).toEqual([
+            'linkTask',
+            '-',
+            'openInEditor',
+            'rename',
+            'closeShells',
+            '-',
+            'hide',
+            'Snooze'
+        ]);
+    });
+
     it('offers to show a hidden worktree or to stop its snooze', () => {
         const hidden = worktreeMenuItems(worktree({ branch: 'b' }), undefined, false, {}, 0);
         expect(hidden).toContainEqual({ id: 'show', label: 'Show in Sidebar' });
