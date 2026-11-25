@@ -72,6 +72,7 @@ import type { BranchDetails, DeleteBranchesResult } from './branches';
 import type { BranchList, CreatedWorktree, CreateWorktreeOptions, CreateWorktreeProgress, RemoveWorktreeResult, Worktree } from './worktrees';
 import type { CopyIgnoredSettings, CopyPreviewResult } from './worktree-settings';
 import type { BrowserBounds, BrowserFindOptions, BrowserState } from './browser';
+import type { ElementPick } from './element-pick';
 import type { Automation, AutomationList, AutomationRun, AutomationRunState, HttpMethod, TokenCount } from './automations';
 import type { PromptTemplate, PromptTemplateList } from './prompt-templates';
 import type { HttpResponse } from './automation-templates';
@@ -844,6 +845,13 @@ export interface ShipWardenApi {
         onFindOpen(listener: (id: string) => void): () => void;
         /** The result of a find. `active` is the number of the current match, from 1. It is 0 when there is no match. */
         onFound(listener: (id: string, active: number, matches: number) => void): () => void;
+        /**
+         * Starts the element picker in the page. Resolves with the element that the user clicks, and its screenshot in a
+         * temporary PNG file. Resolves with null when the user presses Escape, the page navigates, or `cancelPick` runs.
+         */
+        pickElement(id: string): Promise<ElementPick | null>;
+        /** Stops the element picker of the page. */
+        cancelPick(id: string): void;
     };
     terminals: {
         settings(): Promise<TerminalSettings>;
@@ -1177,6 +1185,8 @@ export const IpcChannels = {
     browserStopFind: 'browser:stopFind',
     browserFindOpen: 'browser:findOpen',
     browserFound: 'browser:found',
+    browserPickElement: 'browser:pickElement',
+    browserCancelPick: 'browser:cancelPick',
     usageGet: 'usage:get',
     askRun: 'ask:run',
     askDraft: 'ask:draft',

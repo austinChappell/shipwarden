@@ -248,6 +248,20 @@ the app data folder, with the commit of each side. On GitHub, the images go to t
 the repository. Azure DevOps keeps them as attachments of the pull request, and GitLab keeps them in the uploads of the
 project. Bitbucket Cloud has no API for images in comments, so **Add to PR** does not show for Bitbucket. See [docs/screenshots.md](docs/screenshots.md).
 
+### Send a page element to an agent
+
+The toolbar of a browser tab has a **Pick element** button (the pointer in a dashed square).
+
+1. Click **Pick element**. A box shows above the element under the pointer.
+2. Click the element. Press Escape to stop.
+3. Add a note (optional), select the agent, and click **Send to agent**.
+
+The agent gets the selector of the element, its size, its text, the computed styles that matter (for example display,
+size, spacing, colors, and font), its HTML (cut at 6000 characters), and the path of a screenshot of the element. The
+screenshot is a PNG file in the temporary folder of macOS. It shows only the part of the element in the viewport. The
+first agent that runs in the worktree gets the element by default. You can also select another running agent, or a new
+agent. The picker does not work in frames of other sites.
+
 ### Open in an external editor
 
 Open a worktree or a file in your own editor. ShipWarden finds VS Code, VS Code Insiders, Cursor, Windsurf, Zed, and the

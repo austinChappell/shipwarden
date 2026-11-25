@@ -237,6 +237,11 @@ export const NOTICE_TIPS: readonly Tip[] = [
         body: 'The + button of the tab strip opens an agent, a shell, or a browser tab. Split the browser next to the agent to see your app while the agent works.'
     },
     {
+        id: 'elementPicker',
+        title: 'Send a page element to the agent',
+        body: 'In a browser tab, click the "Pick element" button, then click an element of the page. The agent gets its HTML, its styles, a selector, and a screenshot. Add a note such as "Make this button smaller."'
+    },
+    {
         id: 'ports',
         title: 'Open the port of a dev server',
         body: 'A worktree with a running server shows its port in the sidebar. Click the port to open it in your browser. ⇧⌘-click opens it in ShipWarden.'
