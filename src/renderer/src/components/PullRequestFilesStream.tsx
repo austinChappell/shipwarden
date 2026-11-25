@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Virtualizer } from '@pierre/diffs/react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
+import { Virtualizer, useVirtualizer } from '@pierre/diffs/react';
 import { Bot, ChevronDown, ChevronRight, ChevronUp, FileCode, LoaderCircle, MessageSquare, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import type { DiffSide, PullRequest, PullRequestCommit, PullRequestFile, RepoTarget } from '@shared/github';
 import { reviewStore, useReviewState } from '../github/review-store';
@@ -239,6 +239,22 @@ export function PullRequestFilesStream({
 
     /** The number of the last reveal request. A new request stops the loop of the request before it. */
     const revealRun = useRef(0);
+    const virtualizerRef = useRef<StreamVirtualizer>(undefined);
+
+    /**
+     * Makes the diff measure the position of each open file again.
+     * Each file keeps its position. The diff adds a saved scroll position to the position on the screen. The diff
+     * updates the saved scroll position on the next scroll event. If the diff renders between a scroll and that event,
+     * the file position is incorrect. Then the diff shows a blank file until the position changes again.
+     * This function does a full pass. A full pass reads the scroll position and the file positions again.
+     */
+    const remeasure = () => {
+        const virtualizer = virtualizerRef.current;
+        const root = virtualizer?.getRoot();
+        if (!virtualizer || !(root instanceof HTMLElement)) return;
+        virtualizer.markDOMDirty();
+        virtualizer.scrollTo({ top: root.scrollTop });
+    };
 
     /**
      * Opens a file and scrolls a line to the center of the view. The diff renders only the lines near the view.
@@ -258,8 +274,19 @@ export function PullRequestFilesStream({
         let wait = 0;
         /** The line or the nearest line that the loop found. The loop stops on it when the zone does not show. */
         let fallback: HTMLElement | undefined;
+        /**
+         * True after the first scroll of this request. The first scroll is the large jump, so a full pass follows it.
+         * The small scrolls after it do not need a full pass. This keeps the cost low when the user goes through comments fast.
+         */
+        let jumped = false;
+        const afterScroll = () => {
+            if (jumped) return;
+            jumped = true;
+            remeasure();
+        };
         const finish = (element: HTMLElement, flash: boolean) => {
             element.scrollIntoView({ block: 'center' });
+            afterScroll();
             if (!flash) return;
             // Remove the listeners of an earlier flash first. Else the cancel event of that flash removes this flash.
             flashCleanups.get(element)?.();
@@ -285,6 +312,8 @@ export function PullRequestFilesStream({
             if (run !== revealRun.current) return;
             if (++tries > 90) {
                 if (fallback) finish(fallback, false);
+                // The loop found no line. A file position can be incorrect, so do one more full pass.
+                remeasure();
                 return;
             }
             if (wait > 0) {
@@ -312,6 +341,7 @@ export function PullRequestFilesStream({
                 // The zone shows in a later frame.
                 fallback = line;
                 line.scrollIntoView({ block: 'center' });
+                afterScroll();
                 requestAnimationFrame(step);
                 return;
             }
@@ -320,6 +350,9 @@ export function PullRequestFilesStream({
             if (!rendered.length || !scroller) {
                 // The file does not show. Scroll to the file first.
                 section.scrollIntoView({ block: 'start' });
+                // A file with no lines on the screen can have an incorrect position. Do a full pass each time.
+                remeasure();
+                jumped = true;
                 wait = 2;
                 requestAnimationFrame(step);
                 return;
@@ -328,6 +361,7 @@ export function PullRequestFilesStream({
             const delta = seekDelta(target.line, rendered, box.top + box.height / 2);
             if (delta !== undefined && Math.abs(delta) >= 1) {
                 scroller.scrollBy({ top: delta });
+                afterScroll();
                 wait = 2;
                 requestAnimationFrame(step);
                 return;
@@ -533,6 +567,7 @@ export function PullRequestFilesStream({
                 </ButtonGroup>
             </div>
             <Virtualizer className="files-stream-scroll" contentClassName="files-stream-content">
+                <VirtualizerHandle handle={virtualizerRef} />
                 {files.map(file => {
                     const expanded = isOpen(file);
                     const count = commentCount(file.path);
@@ -615,4 +650,18 @@ export function PullRequestFilesStream({
             </Virtualizer>
         </div>
     );
+}
+
+type StreamVirtualizer = ReturnType<typeof useVirtualizer>;
+
+/** Gives the virtualizer of the stream to the parent. The hook works only in a child of `<Virtualizer>`. */
+function VirtualizerHandle({ handle }: { handle: MutableRefObject<StreamVirtualizer> }) {
+    const virtualizer = useVirtualizer();
+    useEffect(() => {
+        handle.current = virtualizer;
+        return () => {
+            handle.current = undefined;
+        };
+    }, [handle, virtualizer]);
+    return null;
 }
