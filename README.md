@@ -289,20 +289,37 @@ not change your config files, and your own MCP servers stay. The tools act on th
 | `screenshot` | Returns an image of the page. | No |
 | `click` | Clicks a link or a button. | First time in each worktree |
 | `type` | Types text into a field. | First time in each worktree |
-| `start_worker` | Starts a worker agent in a new worktree with a part of a large task. | First time in each worktree |
-| `list_workers` | Lists the workers of this agent, with their states, pull requests, and reports. | No |
-| `wait_for_worker` | Waits until a worker finishes, stops, or needs attention. | No |
-| `report_result` | A worker sends its result to the agent that started it. | No |
-
-An agent can split a large task and start workers with `start_worker`. Each worker gets its own worktree, branch, and
-task. ShipWarden tells the coordinator when a worker sends its result, stops, or waits for 10 minutes. A worker can
-start its own workers up to the limit of Settings › Agents › Worker depth (the default is 2). The usage budget and the
-queue limit apply to each worker. The Plans view shows each coordinator run with its workers.
+| `start_worker` | Makes a new git worktree and branch, and starts a worker agent there with a part of a large task. | First time in each worktree |
+| `list_workers` | Lists the workers of this agent, with their states, branches, pull requests, and reports. | No |
+| `wait_for_worker` | Waits until a worker finishes, stops, or needs attention, and returns it. The wait is 10 to 900 seconds. | No |
+| `report_result` | Sends the result of a worker to the agent that started it. Only a worker can call it. | No |
 
 The first call of a write tool in a worktree shows a dialog. **Allow** applies to that tool in that worktree until you
 revoke it in Settings › Agents › MCP server. Without an answer in 2 minutes, the tool call fails with a clear error.
 Each agent session has its own token. A request without the token gets 401. Turn the server off in Settings › Agents.
 See [docs/mcp-server.md](docs/mcp-server.md) for the options that each agent gets.
+
+#### Worker agents
+
+An agent can split a large task into parts and give each part to a worker agent:
+
+1. The agent calls `start_worker` with the task of the worker. ShipWarden makes a new git worktree and branch, and
+   starts the worker there with that task.
+2. The worker does the task, opens a pull request, and sends its result with `report_result`.
+3. The agent gets the result with `wait_for_worker`. Or ShipWarden sends the agent a message when the worker sends its
+   result, stops, or waits for 10 minutes.
+
+These limits apply:
+
+- A worker can start its own workers. Settings › Agents › MCP server › **Worker depth** sets the number of levels. The
+  default is 2.
+- Each start checks the usage budget of Settings › Agents.
+- The workers and the agents of the task queue share the limit of Settings › Queue › **Agents at the same time**.
+- One agent can start 50 workers at most.
+- The ShipWarden window must be open to start a worker.
+
+The Plans view shows each agent that starts workers as a plan, with each worker as a step. See
+[docs/mcp-server.md](docs/mcp-server.md#coordinator-and-workers).
 
 ### The shipwarden command
 
