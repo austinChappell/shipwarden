@@ -15,7 +15,7 @@ import {
     type TaskLink
 } from '@shared/tasks';
 import { moveListFocus } from '../keyboard/list-nav';
-import { missingSettingsText, noMatchText, taskLabel, taskListState, worktreeForTask } from './tasks/task-view-logic';
+import { missingSettingsText, noMatchText, taskLabel, taskListState, worktreeForTask, type RepoGroup } from './tasks/task-view-logic';
 import { useTaskSource } from './tasks/use-task-source';
 import { useTaskList } from './tasks/use-task-list';
 import { useTaskDetail } from './tasks/use-task-detail';
@@ -37,8 +37,10 @@ const NO_TASKS: Task[] = [];
 interface Props {
     /** The ShipWarden project. The view uses it only for the repository of "Start in worktree". */
     projectId: string;
-    /** The repositories of the project. "Start in worktree" makes the worktree in one of them. */
+    /** The repositories of the active project. "Start in worktree" uses the first one when the user chose none. */
     repos: string[];
+    /** The repositories of all projects, in the order of the sidebar. "Start in worktree" makes the worktree in one of them. */
+    repoGroups: RepoGroup[];
     /** The task of each worktree, by worktree path. */
     links: Record<string, TaskLink>;
     onStartTask(task: Task, connectionId: string, pluginId: string, repo: string): Promise<void>;
@@ -67,6 +69,7 @@ interface Props {
 export function TasksView({
     projectId,
     repos,
+    repoGroups,
     links,
     onStartTask,
     onLinkWorktree,
@@ -202,6 +205,7 @@ export function TasksView({
             state={detailState}
             worktreeFor={worktreeFor}
             repos={repos}
+            repoGroups={repoGroups}
             startRepo={prefs.startRepo}
             chooseStartRepo={prefs.chooseStartRepo}
             repoLabel={repoLabel}

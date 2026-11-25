@@ -2580,6 +2580,7 @@ function PlanPromptAgents({ plan, repoLabel }: { plan: Plan; repoLabel(repo: str
         <PromptAgentsCard
             targets={targets}
             description="The agent in the worktree of each selected step gets the prompt and the list of the pull requests of the plan."
+            draftKey={`plan:${plan.id}`}
             onSend={(keys, prompt, push) => promptPlanAgents(plan, keys, prompt, push, repoLabel)}
         />
     );

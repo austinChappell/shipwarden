@@ -259,6 +259,8 @@ export function App() {
     });
     const { projects, activeProject, repos, worktreesByRepo, worktrees, selectedRepo, showProject } = project;
     const selected = worktrees.find(worktree => worktree.path === selectedPath);
+    /** The repositories of all projects for the repository menu of "Start in worktree", in the order of the sidebar. */
+    const repoGroups = useMemo(() => projects?.projects.map(item => ({ name: item.name, repos: item.repos })) ?? [], [projects]);
     /** The worktree of the tabs on the screen: the home folder in the Terminal view, else the selected worktree. */
     const workspaceWorktree = terminalView ? homeWorktree : selected;
     const agents = useAgentActions({
@@ -1194,6 +1196,7 @@ export function App() {
                                         key={`${activeProject.id}:${viewEntry}`}
                                         projectId={activeProject.id}
                                         repos={repos}
+                                        repoGroups={repoGroups}
                                         links={links}
                                         onStartTask={worktreeActions.startTask}
                                         onLinkWorktree={worktreeActions.chooseWorktreeForTask}
@@ -1327,6 +1330,7 @@ export function App() {
                                     <PlansView
                                         key={`${activeProject.id}:${viewEntry}`}
                                         project={activeProject}
+                                        projects={projects?.projects ?? []}
                                         repoLabel={repoLabel}
                                         repoColor={repo => appSettings.repos[repo]?.color}
                                         route={routeOf('plans')}
