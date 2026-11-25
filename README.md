@@ -283,6 +283,21 @@ the list above. VS Code, its forks, and Zed open the worktree and the file in on
 worktree as a project, and then the file in it. A file tab of the Terminal view opens the worktree that contains the
 file.
 
+### Voice input
+
+Dictate a prompt to an agent. ShipWarden uses the speech recognition of macOS on your Mac only. No audio leaves the Mac.
+
+- Click the microphone button in the chat field, or at the top right of an agent terminal. You can also press ⌥⌘L
+  (change it in Settings › Keyboard).
+- While you speak, the bar shows "Listening" and the text until now.
+- Click **Done** or press ⌥⌘L again. The text goes to the cursor of the chat field, or to the prompt of the agent in the
+  terminal. ShipWarden does not press Enter, so you can check the text first. Click the close icon to stop without
+  text.
+
+The first dictation asks for the microphone and speech recognition permissions. If macOS cannot change speech into text
+on the Mac for your language, ShipWarden shows an error and does not use a server. Turn on Dictation in System Settings
+› Keyboard to get the speech model of your language. See [docs/dictation.md](docs/dictation.md).
+
 ### ShipWarden MCP server
 
 Agents can ask ShipWarden and each other for help, work on their pull requests, and test their changes in the browser,
@@ -419,6 +434,8 @@ npm test           # runs the unit tests
 npm run check      # checks the format and runs the linter (Biome). CI runs it on each pull request.
 npm run format     # formats all files
 npm run check:ios-contract  # checks that the iPhone models agree with src/shared/remote.ts
+npm run build:dictation     # builds the dictation helper (Swift) for npm run dev
+npm run check:dictation     # checks the Swift code of the dictation helper. CI runs it.
 npm run typecheck
 npm run build      # builds to out/
 npm start          # runs the built app
@@ -433,6 +450,8 @@ npm run dist       # builds the app and dist/ShipWarden-<version>-arm64.dmg
 - the built-in task plugins, in `Contents/Resources/plugins`
 - node-pty and its `spawn-helper`
 - the native TypeScript binary for the language server
+- the dictation helper, in `Contents/Resources/native/shipwarden-dictation`. electron-builder builds it with `swiftc`
+  before it packs the app (`scripts/before-pack.cjs`).
 
 The app icon source is `build/icon.svg`. `build/icon.png` is a 1024 × 1024 render of it (`rsvg-convert -w 1024 -h 1024 build/icon.svg -o build/icon.png`).
 
@@ -477,6 +496,7 @@ This script deletes `/tmp/sw-fresh` and then runs `SHIPWARDEN_USER_DATA_DIR=/tmp
 | `src/main/slack/` | The Slack connection (Socket Mode): agent questions, replies, and agent starts |
 | `relay/` | The push relay: a small Node server with the APNs key. It keeps no data. |
 | `ios/` | The iPhone app (SwiftUI) |
+| `native/dictation/` | The dictation helper (Swift): speech to text with the speech recognition of macOS |
 | `docs/ARCHITECTURE.md` | Decisions and the plan |
 
 ### Native install scripts

@@ -118,6 +118,7 @@ import { useNavHistory } from './app/use-nav-history';
 import { useNotifications } from './app/use-notifications';
 import { useProjects } from './app/use-projects';
 import { useShortcuts } from './app/use-shortcuts';
+import { dictationStore } from './dictation/dictation-store';
 import { useStoredFlag } from './app/use-stored-flag';
 import { useTerminalColors } from './app/use-terminal-colors';
 import { useWorkspaceTabs } from './app/use-workspace-tabs';
@@ -940,6 +941,24 @@ export function App() {
         }
         if (action === 'focusWorkspace') {
             focusWorkspace();
+            return;
+        }
+        if (action === 'dictation') {
+            // A second press stops the dictation. Else the target is the agent tab with the focus, else the agent of
+            // the active tab or the worktree.
+            if (dictationStore.running()) {
+                dictationStore.stop();
+                return;
+            }
+            const focusedSession = document.activeElement?.closest('[data-dictation-session]')?.getAttribute('data-dictation-session');
+            const sessionId =
+                focusedSession ??
+                (await promptTarget().then(
+                    target => (target.session.isAgent ? target.session.id : undefined),
+                    () => undefined
+                ));
+            if (sessionId) dictationStore.start(sessionId);
+            else setError('No agent is open here. Open an agent tab, then press the dictation key again.');
             return;
         }
         // The tab and pane shortcuts work the same in the worktree view and in the Terminal view.

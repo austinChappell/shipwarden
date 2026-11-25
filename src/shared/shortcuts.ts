@@ -23,6 +23,7 @@ import {
  * ⌥⌘1 to ⌥⌘6 open a view: Dashboard, Agents, Tasks, Review, Pipelines and Notes. ⇧⌘0 moves the focus to the workspace.
  * ⇧⌘P opens the command palette. ⇧⌘C copies the relative path of the active file, or the link of the pull request or
  * task on the screen. ⌥⌘R shows that file in Finder. ⌥⌘O opens that file, or the selected worktree, in the external editor.
+ * ⌥⌘L starts or stops the dictation in the agent prompt or the chat of the focused agent tab.
  * ⌘0 stays the key of the Actual Size menu item.
  */
 export type ShortcutAction =
@@ -58,6 +59,7 @@ export type ShortcutAction =
     | 'selectLastTab'
     | 'previousTab'
     | 'nextTab'
+    | 'dictation'
     | ViewAction;
 
 /** The actions that open a view of the sidebar (⌥⌘1 to ⌥⌘7). */
@@ -230,6 +232,7 @@ export const SHORTCUT_INFO: Record<ShortcutAction, ShortcutInfo> = {
     revealFileInFinder: { label: 'Show the active file in Finder', keys: ['⌥⌘R'], group: 'Worktrees and tabs' },
     openInEditor: { label: 'Open the active file or the worktree in the external editor', keys: ['⌥⌘O'], group: 'Worktrees and tabs' },
     commandPalette: { label: 'Open the command palette', keys: ['⇧⌘P'], group: 'App' },
+    dictation: { label: 'Start or stop dictation in the agent prompt or the chat', keys: ['⌥⌘L'], group: 'Terminal, editor, and review' },
     back: { label: 'Back', keys: ['⌘['], group: 'History' },
     forward: { label: 'Forward', keys: ['⌘]'], group: 'History' }
 };

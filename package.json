@@ -20,6 +20,8 @@
     "format": "biome format --write .",
     "check": "biome ci .",
     "check:ios-contract": "sh scripts/check-ios-contract.sh",
+    "build:dictation": "sh scripts/build-dictation-helper.sh",
+    "check:dictation": "sh scripts/build-dictation-helper.sh --typecheck",
     "ios:upload": "bash scripts/ios-upload.sh",
     "ios:upload:dry": "bash scripts/ios-upload.sh --dry-run",
     "postinstall": "node scripts/postinstall.mjs",
@@ -93,6 +95,7 @@
       "node_modules/@typescript/**",
       "node_modules/typescript-language-server/**"
     ],
+    "beforePack": "scripts/before-pack.cjs",
     "extraResources": [
       {
         "from": "bin",
@@ -104,6 +107,13 @@
         "filter": [
           "**/*",
           "!**/*.test.js"
+        ]
+      },
+      {
+        "from": "native/build",
+        "to": "native",
+        "filter": [
+          "shipwarden-dictation"
         ]
       }
     ],
@@ -128,7 +138,11 @@
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "identity": "Austin Chappell (76A95UF226)"
+      "identity": "Austin Chappell (76A95UF226)",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "ShipWarden uses the microphone for dictation in the agent prompt and the chat. The audio stays on this Mac.",
+        "NSSpeechRecognitionUsageDescription": "ShipWarden uses the speech recognition of macOS on this Mac to change your dictation into text. The audio stays on this Mac."
+      }
     },
     "dmg": {
       "title": "ShipWarden"

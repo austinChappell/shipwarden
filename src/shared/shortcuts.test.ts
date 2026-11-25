@@ -170,6 +170,14 @@ describe('toggleSidebar', () => {
     });
 });
 
+describe('dictation', () => {
+    it('is ⌥⌘L, from the code of the key', () => {
+        // With Option, macOS sends another character in "key". The code stays "KeyL".
+        expect(shortcutAction({ type: 'keyDown', meta: true, shift: false, control: false, alt: true, key: '¬', code: 'KeyL' })).toBe('dictation');
+        expect(shortcutAction({ type: 'keyDown', meta: true, shift: false, control: false, alt: false, key: 'l', code: 'KeyL' })).toBeUndefined();
+    });
+});
+
 describe('newWorktree', () => {
     it('is ⌘N without other modifier keys', () => {
         expect(key({ key: 'n', code: 'KeyN' })).toBe('newWorktree');

@@ -102,6 +102,7 @@ The default keys are in the accelerator form.
 | `revealFileInFinder` | Show the active file in Finder | `CmdOrCtrl+Alt+R` |
 | `openInEditor` | Open the active file or the worktree in the external editor | `CmdOrCtrl+Alt+O` |
 | `commandPalette` | Open the command palette | `CmdOrCtrl+Shift+P` |
+| `dictation` | Start or stop dictation in the agent prompt or the chat | `CmdOrCtrl+Alt+L` |
 | `back` | Back | `CmdOrCtrl+[` |
 | `forward` | Forward | `CmdOrCtrl+]` |
 | `settings` | Settings | `CmdOrCtrl+,` |

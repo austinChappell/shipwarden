@@ -1,5 +1,5 @@
 # Checks each pull request, each merge queue group and each push to main: format and lint, types, unit tests, the build,
-# and the contract between the desktop API and the iPhone models.
+# the contract between the desktop API and the iPhone models, and the Swift code of the dictation helper.
 name: CI
 
 on:
@@ -53,6 +53,9 @@ jobs:
 
       - name: iPhone API contract
         run: npm run check:ios-contract
+
+      - name: Dictation helper (Swift type check)
+        run: npm run check:dictation
 
       - name: Build
         run: npm run build
