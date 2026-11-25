@@ -102,6 +102,7 @@ import { errorText } from '../util';
 import { cancelExplore, explorePlan } from './plan-explore';
 import { cachedPlan, createPlan, removePlan, updatePlan, useExploreState } from './plan-queries';
 import { planRunner } from './plan-runner';
+import { PlanTitle } from './PlanTitle';
 import { CoordinatorRun } from './CoordinatorRun';
 import { planPullRequests, syncPlanGroup, usePlanGroup } from './plan-group';
 import {
@@ -2011,7 +2012,7 @@ function PlanRun({ plan, project, repoLabel, repoColor, onOpenWorktree, onClosed
                 stage={stage}
                 finished={shipped}
                 runDetail={runDetail}
-                title={<h2 className="flow-title">{plan.title}</h2>}
+                title={<PlanTitle plan={plan} onError={setError} />}
                 status={<Chip tone={status.tone}>{status.label}</Chip>}
                 actions={
                     <>

@@ -209,6 +209,7 @@ const api: ShipWardenApi = {
         list: () => ipcRenderer.invoke(IpcChannels.plansList),
         save: plan => ipcRenderer.invoke(IpcChannels.plansSave, plan),
         remove: id => ipcRenderer.invoke(IpcChannels.plansRemove, id),
+        rename: (id, title) => ipcRenderer.invoke(IpcChannels.plansRename, id, title),
         explore: request => ipcRenderer.invoke(IpcChannels.plansExplore, request),
         cancelExplore: id => ipcRenderer.invoke(IpcChannels.plansCancelExplore, id),
         onChanged: listener => subscribe<[Plan]>(IpcChannels.plansChanged, listener)

@@ -20,8 +20,8 @@ import { changePullRequest, mergePullRequest } from '../github/pull-request-muta
 import { pullRequestQuery } from '../github/review-store';
 import { keyRoots, queryClient } from '../query-client';
 import { errorText } from '../util';
-import { syncGroupOrder, syncPlanGroup } from './plan-group';
-import { cachedPlan, updatePlan } from './plan-queries';
+import { renamePlanGroup, syncGroupOrder, syncPlanGroup } from './plan-group';
+import { cachedPlan, renamePlan, updatePlan } from './plan-queries';
 import { planRunner } from './plan-runner';
 import { moveKeyTo } from '../components/reorder';
 
@@ -247,4 +247,16 @@ export async function moveStepInRepo(planId: string, stepId: string, to: number)
     });
     // The PR group of the plan gets the same order.
     if (plan) await syncGroupOrder(plan);
+}
+
+/**
+ * Changes the title of a plan that runs or ran. The PR group of the plan gets the new title too. The branches of the
+ * steps keep their names.
+ */
+export async function changePlanTitle(id: string, title: string): Promise<void> {
+    const before = cachedPlan(id)?.title;
+    const next = title.trim().slice(0, MAX_TITLE_LENGTH);
+    if (!before || !next || next === before) return;
+    await renamePlan(id, next);
+    await renamePlanGroup(id, before, next).catch(error => console.warn(`[plans] The PR group of "${next}" did not change: ${errorText(error)}`));
 }
