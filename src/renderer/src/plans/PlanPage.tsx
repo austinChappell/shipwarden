@@ -129,6 +129,8 @@ const SAVE_DELAY_MS = 400;
 interface Props {
     plan: Plan;
     project: Project;
+    /** All projects. A draft without steps can move to another project. */
+    projects: readonly Project[];
     repoLabel(repo: string): string;
     /** The color of a repository from its settings, as in the sidebar. */
     repoColor(repo: string): RepoColor | undefined;
@@ -355,9 +357,11 @@ function withStepTitle(plan: Plan, stepId: string, title: string): Plan {
 /* Draft                                                                                                               */
 /* ------------------------------------------------------------------------------------------------------------------ */
 
-function PlanEditor({ plan, project, repoLabel, repoColor, onClosed, onOpenPlan, onOpenGroup }: Props) {
+function PlanEditor({ plan, project: savedProject, projects, repoLabel, repoColor, onClosed, onOpenPlan, onOpenGroup }: Props) {
     const explore = useExploreState(plan.id);
     const [draft, setDraft] = useState(plan);
+    // The project of the draft. It changes at once when the user selects another project.
+    const project = projects.find(item => item.id === draft.projectId) ?? savedProject;
     const [feedback, setFeedback] = useState('');
     const [error, setError] = useState<string>();
     const [starting, setStarting] = useState(false);
@@ -399,6 +403,17 @@ function PlanEditor({ plan, project, repoLabel, repoColor, onClosed, onOpenPlan,
             const named = patch.title === undefined ? current : withStepTitle(current, id, patch.title);
             return { ...named, steps: current.steps.map(step => (step.id === id ? { ...step, ...patch } : step)) };
         });
+    /** Moves the draft to another project. Only a draft without steps can move, because each step has a repository. */
+    const changeProject = (projectId: string) => {
+        const current = draftRef.current;
+        if (projectId === current.projectId || current.steps.length > 0) return;
+        const next = { ...current, projectId };
+        // Save at once, so that the list of plans shows the plan in its new project.
+        draftRef.current = next;
+        dirty.current = true;
+        setDraft(next);
+        void flush();
+    };
     const setConfirmed = (id: string, confirmed: boolean) =>
         edit(current => ({ ...current, decisions: current.decisions?.map(decision => (decision.id === id ? { ...decision, confirmed } : decision)) }));
 
@@ -612,6 +627,23 @@ function PlanEditor({ plan, project, repoLabel, repoColor, onClosed, onOpenPlan,
                                 </>
                             ) : !hasSteps || editingIdea ? (
                                 <>
+                                    {!hasSteps && projects.length > 1 && (
+                                        <div className="plan-project-field">
+                                            <span className="flow-label" aria-hidden="true">
+                                                Project
+                                            </span>
+                                            <Combobox
+                                                className="plan-project-picker"
+                                                value={draft.projectId}
+                                                disabled={locked}
+                                                aria-label="Project"
+                                                groups={[{ label: '', items: projects.map(item => ({ value: item.id, label: item.name })) }]}
+                                                placeholder={project.name}
+                                                searchPlaceholder="Search projects"
+                                                onChange={changeProject}
+                                            />
+                                        </div>
+                                    )}
                                     <label className="flow-label" htmlFor={`plan-idea-${plan.id}`}>
                                         Idea
                                     </label>
