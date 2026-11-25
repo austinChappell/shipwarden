@@ -19,9 +19,10 @@ describe('countChecks', () => {
             run(1, 'test', 'completed', 'failure'),
             run(2, 'test', 'completed', 'success'),
             run(3, 'lint', 'completed', 'failure'),
-            run(4, 'build', 'in_progress', null)
+            run(4, 'build', 'in_progress', null),
+            run(5, 'deploy', 'queued', null)
         ]);
         expect(counts.failedChecks.map(check => check.id)).toEqual([3]);
-        expect(counts).toMatchObject({ total: 3, passed: 1, failed: 1, running: 1 });
+        expect(counts).toMatchObject({ total: 4, passed: 1, failed: 1, running: 2, inProgress: 1, notStarted: 1 });
     });
 });

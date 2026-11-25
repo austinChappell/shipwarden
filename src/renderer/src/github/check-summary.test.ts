@@ -19,6 +19,8 @@ const counts = (failedChecks: CheckRun[]): CheckCounts => ({
     passed: 3 - failedChecks.length,
     failed: failedChecks.length,
     running: 0,
+    inProgress: 0,
+    notStarted: 0,
     failedChecks
 });
 

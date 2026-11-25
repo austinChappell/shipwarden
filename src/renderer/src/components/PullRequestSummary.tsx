@@ -77,7 +77,42 @@ function checkState(pr: PullRequest, checks: CheckCounts | undefined): { text: s
     return { text: `${checks.passed} of ${checks.total} passing`, tone: 'ok' };
 }
 
-function Cell({ label, tone, dot, onClick, children }: { label: string; tone?: Tone; dot?: boolean; onClick?(): void; children: ReactNode }) {
+/** The parts of the checks bar, in the order of the bar. */
+const CHECK_PARTS = [
+    { key: 'passed', label: 'passed' },
+    { key: 'failed', label: 'failed' },
+    { key: 'inProgress', label: 'in progress' },
+    { key: 'notStarted', label: 'not started' }
+] as const;
+
+/** A bar with one part for each state of the checks: passed, failed, in progress, and not started. */
+export function ChecksBar({ checks }: { checks: CheckCounts }) {
+    const parts = CHECK_PARTS.filter(part => checks[part.key] > 0);
+    const title = parts.map(part => `${checks[part.key]} ${part.label}`).join(', ');
+    return (
+        <span className="checks-bar" role="img" aria-label={title} title={title}>
+            {parts.map(part => (
+                <span key={part.key} className={`checks-bar-part ${part.key}`} style={{ flexGrow: checks[part.key] }} />
+            ))}
+        </span>
+    );
+}
+
+function Cell({
+    label,
+    tone,
+    dot,
+    onClick,
+    footer,
+    children
+}: {
+    label: string;
+    tone?: Tone;
+    dot?: boolean;
+    onClick?(): void;
+    footer?: ReactNode;
+    children: ReactNode;
+}) {
     const body = (
         <>
             <span className="pr-summary-label">{label}</span>
@@ -85,6 +120,7 @@ function Cell({ label, tone, dot, onClick, children }: { label: string; tone?: T
                 {dot && <span className="pr-summary-dot" />}
                 {children}
             </span>
+            {footer}
         </>
     );
     return onClick ? (
@@ -106,7 +142,13 @@ export function PullRequestSummary({ pr, checks, onSelectTab }: { pr: PullReques
             <Cell label="Review" tone={review.tone} dot={review.tone !== 'muted'}>
                 {review.text}
             </Cell>
-            <Cell label="Checks" tone={check.tone} dot={check.tone !== 'muted'} onClick={() => onSelectTab('checks')}>
+            <Cell
+                label="Checks"
+                tone={check.tone}
+                dot={check.tone !== 'muted'}
+                onClick={() => onSelectTab('checks')}
+                footer={checks && checks.total > 0 && <ChecksBar checks={checks} />}
+            >
                 {check.text}
             </Cell>
             <Cell label="Size" onClick={() => onSelectTab('files')}>
