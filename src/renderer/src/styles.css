@@ -2023,6 +2023,34 @@ code {
     user-select: text;
 }
 
+/* The title of a pull request as a text field. It looks like the title text until the pointer goes over it. */
+.pr-title-input {
+    field-sizing: content;
+    display: inline-block;
+    max-width: 100%;
+    margin: -3px 0 -3px -6px;
+    padding: 2px 6px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    outline: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    line-height: inherit;
+    vertical-align: top;
+    resize: none;
+    overflow: hidden;
+}
+
+.pr-title-input:hover {
+    border-color: var(--border);
+}
+
+.pr-title-input:focus {
+    border-color: var(--accent);
+    background: var(--bg);
+}
+
 .pr-meta {
     color: var(--muted);
     font-size: 12px;

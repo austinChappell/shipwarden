@@ -32,6 +32,8 @@ import { LogView } from './LogView';
 import { PullRequestFilesStream } from './PullRequestFilesStream';
 import { BaseBranch, BranchName, ConflictBadge, PullRequestCommitList, PullRequestFileList, PullRequestPanel, StateBadge } from './PullRequestPanel';
 import { PullRequestSummary } from './PullRequestSummary';
+import { PullRequestTitle } from './PullRequestTitle';
+import { changePullRequest } from '../github/pull-request-mutations';
 import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
 import { ResizeHandle, usePanelWidth } from './ResizeHandle';
 import { openLink } from '../links';
@@ -280,6 +282,7 @@ export function ReviewPullRequest({
     const [file, setFile] = useState<{ file: PullRequestFile; line?: number; side?: DiffSide; nonce: number }>();
     const [check, setCheck] = useState<CheckRun>();
     const [fileError, setFileError] = useState<string>();
+    const [titleError, setTitleError] = useState<string>();
     const [findRequest, setFindRequest] = useState<FindRequest>();
     const review = useReviewState(repo, pr?.number);
     const checkCounts = useCheckCounts(repo, status?.sha);
@@ -387,6 +390,7 @@ export function ReviewPullRequest({
         setFile(undefined);
         setCheck(undefined);
         setFileError(undefined);
+        setTitleError(undefined);
         setCode(undefined);
         cursorRef.current = undefined;
     }, [repo.owner, repo.name, pr?.number]);
@@ -570,7 +574,16 @@ export function ReviewPullRequest({
                     <div className="review-pr-heading">
                         {back}
                         <h2 className="review-pr-title">
-                            {pr.title} <span className="review-pr-number">#{pr.number}</span>
+                            <PullRequestTitle
+                                pr={pr}
+                                className="review-pr-title-text"
+                                onSave={title =>
+                                    changePullRequest(repo, pr, { kind: 'details', title })
+                                        .then(() => setTitleError(undefined))
+                                        .catch(error => setTitleError(errorText(error)))
+                                }
+                            />{' '}
+                            <span className="review-pr-number">#{pr.number}</span>
                             <IconButton
                                 size="sm"
                                 className="review-pr-host-link"
@@ -579,6 +592,7 @@ export function ReviewPullRequest({
                                 onClick={event => openLink(pr.url, event)}
                             />
                         </h2>
+                        {titleError && <ErrorBanner onClose={() => setTitleError(undefined)}>{titleError}</ErrorBanner>}
                     </div>
                     <div className="review-pr-actions">
                         <SplitButton

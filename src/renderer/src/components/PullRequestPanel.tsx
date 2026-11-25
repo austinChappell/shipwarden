@@ -23,6 +23,7 @@ import { errorText, optionalErrorText, timeAgo } from '../util';
 import { changePullRequest, mergePullRequest, submitReview } from '../github/pull-request-mutations';
 import { confirmDialog } from './ConfirmDialog';
 import { DescriptionEditor, PullRequestMeta } from './PullRequestDetails';
+import { PullRequestTitle } from './PullRequestTitle';
 import { PullRequestTimeline } from './PullRequestTimeline';
 import { openLink } from '../links';
 import { useCheckCounts, type CheckCounts } from '../github/use-check-counts';
@@ -372,7 +373,13 @@ export function PullRequestPanel({
                                 )}
                                 <RefreshButton size="sm" className="pr-refresh" refreshing={loading} onRefresh={onRefresh} />
                             </div>
-                            <h3 className="pr-title">{pr.title}</h3>
+                            <h3 className="pr-title">
+                                <PullRequestTitle
+                                    pr={pr}
+                                    className="pr-title-text"
+                                    onSave={title => run(() => changePullRequest(target, pr, { kind: 'details', title }))}
+                                />
+                            </h3>
                             <div className="pr-meta">
                                 {pr.author?.login ?? 'unknown'}{' '}
                                 {pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'wanted to merge' : 'wants to merge'} into{' '}
