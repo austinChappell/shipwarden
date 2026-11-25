@@ -6,6 +6,7 @@ import HtmlWorker from 'monaco-editor/language/html/html.worker?worker';
 import JsonWorker from 'monaco-editor/language/json/json.worker?worker';
 import TsWorker from 'monaco-editor/language/typescript/ts.worker?worker';
 import { registerDotenv } from './dotenv';
+import { registerShell } from './shell';
 
 self.MonacoEnvironment = {
     getWorker(_workerId: string, label: string) {
@@ -40,6 +41,7 @@ for (const defaults of [monaco.typescript.typescriptDefaults, monaco.typescript.
 monaco.languages.register({ id: 'ruby', extensions: ['.rbi', '.rake', '.ru'], filenames: ['Rakefile', 'Guardfile'] });
 
 registerDotenv(monaco);
+registerShell(monaco);
 
 /** Syntax colors for each mode. Dark follows Ayu Dark. Light uses dark, saturated colors that are readable on a light background. */
 const SYNTAX: Record<Mode, Record<string, string>> = {
@@ -122,6 +124,11 @@ export function applyEditorTheme(palette: Palette, mode: Mode): void {
             { token: 'string.value.json', foreground: syntax.string },
             { token: 'regexp', foreground: syntax.regexp },
             { token: 'variable.dotenv', foreground: syntax.attributeName },
+            // Shell scripts (the grammar in "shell.ts").
+            { token: 'function.shell', foreground: syntax.type },
+            { token: 'variable.shell', foreground: syntax.attributeName },
+            { token: 'parameter.shell', foreground: syntax.regexp },
+            { token: 'operator.shell', foreground: syntax.keyword },
             // GitHub Actions logs (the "ci-log" language).
             { token: 'ci-error', foreground: syntax.error },
             { token: 'ci-warning', foreground: syntax.warning },
