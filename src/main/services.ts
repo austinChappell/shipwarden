@@ -83,6 +83,9 @@ import { CliInstaller } from './cli/cli-install';
 import { CliPageBridge } from './cli/page-bridge';
 import { CliError } from './cli/cli-server';
 import { RemoteStarter } from './remote/remote-start';
+import { SlackApi } from './slack/slack-api';
+import { SlackBridge } from './slack/slack-bridge';
+import { SlackTokenStore } from './slack/slack-tokens';
 import { cliConfigPath, cliSocketPath } from './cli/paths';
 import { AgentBrowser } from './browser/agent-browser';
 import { findOverlaps } from '@shared/worktree-overlap';
@@ -256,6 +259,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
             },
             exit: (id, exitCode) => {
                 void mcp.revokeSession(id).catch(() => undefined);
+                slack.forget(id);
                 coordinators.sessionExited(id);
                 shellAgents.forget(id);
                 stats.forget(id);
@@ -272,6 +276,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
                 transcriptIndex.update(update.transcript);
                 remote.agentsChanged();
                 remote.agentState(id, update.state);
+                slack.agentState(id, update);
             }
         }
     });
@@ -302,6 +307,7 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
             stats.agentState(id, update);
             remote.agentsChanged();
             remote.agentState(id, update.state);
+            slack.agentState(id, update);
         },
         onProgram: (id, program) => {
             window.send(IpcChannels.terminalsAgentProgram, id, program ?? null);
@@ -392,7 +398,10 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
             await Promise.all([automations.reloadRuns(), queue.reload(), tasks.reloadLinks()]);
         },
         onRelease: () => undefined,
-        onOwnedChanged: owned => window.send(IpcChannels.automationsEngineChanged, owned),
+        onOwnedChanged: owned => {
+            window.send(IpcChannels.automationsEngineChanged, owned);
+            void slack.setActive(owned);
+        },
         log: message => console.info(`[automations] ${message}`)
     });
 
@@ -454,6 +463,24 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         devices: () => new RemoteDevices(join(userData, 'remote-devices.json')),
         ready: networkReady,
         log: message => console.warn(`[push] ${message}`)
+    });
+
+    /**
+     * The Slack connection (Settings › Slack). It runs in the process that holds the automation lock: here while a
+     * window is open, else in the background helper. The tokens are in the keychain, so the helper can read them too.
+     */
+    const slackTokens = new SlackTokenStore(userData);
+    const slack = new SlackBridge({
+        settings: () => settings.get(),
+        tokens: () => slackTokens.get(),
+        projects: async () => (await projects.get()).projects,
+        sessions: () => (terminals.isConnected() ? terminalSessions() : Promise.resolve([])),
+        write: (id, data) => terminals.write(id, data),
+        start: request => phoneStarter.start(request),
+        threadsFile: join(userData, 'slack-threads.json'),
+        api: new SlackApi({ ready: networkReady }),
+        log: message => console.info(`[slack] ${message}`),
+        onStatus: status => window.send(IpcChannels.slackChanged, status)
     });
 
     /** The HTTPS server for the phone app in this process. Each call makes a new server, which reads the paired phones again. */
@@ -786,6 +813,8 @@ export function createServices({ window, mainFolder, onBrowserInput, separateDat
         terminalSizes,
         remote,
         push,
+        slack,
+        slackTokens,
         projectWorktrees,
         screenshots,
         askRunner,

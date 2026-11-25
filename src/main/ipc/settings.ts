@@ -23,6 +23,7 @@ type SettingsIpcDependencies = Pick<
     | 'certificates'
     | 'tasks'
     | 'remote'
+    | 'slack'
     | 'window'
     | 'shellReady'
     | 'networkReady'
@@ -50,6 +51,9 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
         }
         if (changed(before.remote, next.remote)) {
             await remote.apply(next.remote);
+        }
+        if (changed(before.slack, next.slack)) {
+            await deps.slack.apply();
         }
         if (before.mcpServer !== next.mcpServer) {
             await deps.mcp.apply(next.mcpServer);

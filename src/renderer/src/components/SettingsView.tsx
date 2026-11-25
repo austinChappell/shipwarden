@@ -4,6 +4,7 @@ import {
     Bot,
     FolderTree,
     GitPullRequest,
+    Hash,
     Info,
     LayoutDashboard,
     ListTodo,
@@ -27,6 +28,7 @@ import { ReviewStrictnessGroup } from './ReviewStrictnessSettings';
 import { DashboardSettings } from './DashboardSettings';
 import { NetworkSettings } from './NetworkSettings';
 import { MobileSettings } from './MobileSettings';
+import { SlackSettings } from './SlackSettings';
 import { NotificationSettings } from './NotificationSettings';
 import { WorktreeSettings } from './WorktreeSettings';
 import { AppearanceSettings } from './AppearanceSettings';
@@ -51,6 +53,7 @@ type FixedSection =
     | 'terminal'
     | 'network'
     | 'mobile'
+    | 'slack'
     | 'about';
 /** A fixed section, or "repo:<path>" for the settings of one repository. */
 type SectionId = FixedSection | `repo:${string}`;
@@ -68,6 +71,7 @@ export const SETTINGS_SECTIONS: { id: FixedSection; label: string; icon: LucideI
     { id: 'terminal', label: 'Terminal', icon: SquareTerminal },
     { id: 'network', label: 'Network', icon: Network },
     { id: 'mobile', label: 'Mobile', icon: Smartphone, badge: 'Beta' },
+    { id: 'slack', label: 'Slack', icon: Hash, badge: 'Beta' },
     { id: 'about', label: 'About', icon: Info }
 ];
 
@@ -287,6 +291,7 @@ export function SettingsView({ settings, mode, terminal, repos, section: section
                         {current.id === 'notifications' && <NotificationSettings settings={settings} onSave={onSave} />}
                         {current.id === 'network' && <NetworkSettings settings={settings} onSave={onSave} />}
                         {current.id === 'mobile' && <MobileSettings settings={settings} onSave={onSave} />}
+                        {current.id === 'slack' && <SlackSettings settings={settings} onSave={onSave} />}
                         {current.id === 'dashboard' && <DashboardSettings settings={settings} onSave={onSave} prefill={rulePrefill} />}
                         {current.id === 'agents' && <AgentsSettings settings={settings} onSave={onSave} />}
                         {current.id === 'prompts' && <PromptTemplatesSettings terminalKeybinds={terminal?.keybinds ?? []} />}

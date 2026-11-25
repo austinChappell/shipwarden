@@ -1,5 +1,6 @@
 import type { AgentModel } from './agent-models';
 import type { PairingOffer, RemoteDevicePermissions, RemoteStatus } from './remote';
+import type { SlackChannel, SlackStatus, SlackTokenInput } from './slack';
 import type { DashboardPullRequests, PipelineApprovalItem, PipelineApprovalTarget, PullRequestCommentItem } from './dashboard';
 import type { RepoPullRequests } from './review-queue';
 import type { Snooze, Snoozes } from './snooze';
@@ -689,6 +690,18 @@ export interface ShipWardenApi {
         /** Called when a phone pairs, connects or disconnects. */
         onChanged(listener: () => void): () => void;
     };
+    slack: {
+        /** The state of the Slack connection in this process, and which tokens are saved. */
+        status(): Promise<SlackStatus>;
+        /** Saves the tokens in the keychain and connects again. An empty value keeps the saved token. Returns the new state. */
+        saveTokens(tokens: SlackTokenInput): Promise<SlackStatus>;
+        /** Removes both tokens from the keychain and disconnects. Returns the new state. */
+        clearTokens(): Promise<SlackStatus>;
+        /** The channels for the channel picker. Each call asks Slack. */
+        channels(): Promise<SlackChannel[]>;
+        /** Called with the new state after each change of the connection. */
+        onChanged(listener: (status: SlackStatus) => void): () => void;
+    };
     snoozes: {
         /** The snoozes of pull requests that did not end, by key. */
         list(): Promise<Snoozes>;
@@ -1078,6 +1091,11 @@ export const IpcChannels = {
     remoteSetDevicePermissions: 'remote:setDevicePermissions',
     remoteTestPush: 'remote:testPush',
     remoteChanged: 'remote:changed',
+    slackStatus: 'slack:status',
+    slackSaveTokens: 'slack:saveTokens',
+    slackClearTokens: 'slack:clearTokens',
+    slackChannels: 'slack:channels',
+    slackChanged: 'slack:changed',
     snoozesList: 'snoozes:list',
     snoozesSet: 'snoozes:set',
     seenKeys: 'seen:keys',

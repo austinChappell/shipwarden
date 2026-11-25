@@ -35,6 +35,9 @@ import { RemoteSnapshotBuilder } from '../remote/remote-snapshot';
 import { RemoteStarter } from '../remote/remote-start';
 import { ensureTlsIdentity } from '../remote/tls-identity';
 import { SettingsStore } from '../settings-store';
+import { SlackApi } from '../slack/slack-api';
+import { SlackBridge } from '../slack/slack-bridge';
+import { SlackTokenStore } from '../slack/slack-tokens';
 import { ScreenMirror } from '../remote/screen-mirror';
 import { loadLoginShellPath, loginShellCaFile } from '../shell-env';
 import { JsonStore } from '../tasks/json-store';
@@ -85,11 +88,13 @@ const terminals = new PtyHostClient({
         data: (id, data, seq) => remote.terminalData(id, data, seq),
         exit: id => {
             shellAgents.forget(id);
+            slack.forget(id);
             remote.terminalExited(id);
         },
         agentState: (id, update) => {
             remote.agentsChanged();
             remote.agentState(id, update.state);
+            slack.agentState(id, update);
         }
     }
 });
@@ -104,6 +109,7 @@ const shellAgents = new ShellAgents({
     onState: (id, update) => {
         remote.agentsChanged();
         remote.agentState(id, update.state);
+        slack.agentState(id, update);
     },
     onProgram: () => remote.agentsChanged()
 });
@@ -232,6 +238,8 @@ const automations = new HelperAutomations({
     http: request => sendHttpRequest(request, networkReady),
     notify,
     onPending: run => void push.send(approvalMessage(run)).catch(() => undefined),
+    // The Slack connection runs in the process that holds the automation lock, so Slack gets each question one time only.
+    onOwnedChanged: owned => void slack.setActive(owned),
     log: message => log(`[automations] ${message}`)
 });
 
@@ -339,6 +347,22 @@ async function startAgent(body: unknown) {
     }
 }
 
+/**
+ * The Slack connection (Settings › Slack) while the helper holds the automation lock. The app is closed then, so the
+ * settings and the tokens do not change until the app takes the lock back.
+ */
+const slack = new SlackBridge({
+    settings: readSettings,
+    tokens: () => new SlackTokenStore(userData).get(),
+    projects: readProjects,
+    sessions: () => (terminals.isConnected() ? sessions() : Promise.resolve([])),
+    write: (id, data) => terminals.write(id, data),
+    start: request => startAgent(request),
+    threadsFile: join(userData, 'slack-threads.json'),
+    api: new SlackApi({ ready: networkReady }),
+    log: message => log(`[slack] ${message}`)
+});
+
 const remote: RemoteServer = new RemoteServer({
     devices: new RemoteDevices(join(userData, 'remote-devices.json')),
     identity: () => ensureTlsIdentity(userData),
@@ -385,6 +409,7 @@ const control = new HelperServer({
 async function stop(code: number): Promise<never> {
     shellAgents.stop();
     await automations.stop().catch(() => undefined);
+    await slack.stop().catch(() => undefined);
     control.stop();
     await remote.stop().catch(() => undefined);
     // The PTY host and its sessions continue to run.
