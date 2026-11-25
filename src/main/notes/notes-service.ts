@@ -15,15 +15,17 @@ import { JsonStore } from '../tasks/json-store';
 
 /** The file in the notes folder that keeps the tags. It starts with a dot, so it is not a note. */
 const INDEX_FILE = '.shipwarden-notes.json';
+/** The maximum length of the run command of a note. */
+const MAX_RUN_COMMAND_LENGTH = 2000;
 
 interface NotesIndex {
-    notes: Record<string, { tags: string[] }>;
+    notes: Record<string, { tags: string[]; runCommand?: string }>;
 }
 
 /**
  * Keeps the notes: local files with any extension in one folder, like the scratch files of JetBrains IDEs.
  * A note can also be in a folder of the notes folder (one level). The tags are in an index file in the notes folder,
- * by the path of the note. The user and agents can open the files directly.
+ * by the path of the note, with the run command of each note. The user and agents can open the files directly.
  */
 export class NotesService {
     private readonly index: JsonStore<NotesIndex>;
@@ -74,6 +76,7 @@ export class NotesService {
                     fileName,
                     folder,
                     tags: normalizeTags(index.notes?.[name]?.tags),
+                    ...(index.notes?.[name]?.runCommand ? { runCommand: index.notes[name].runCommand } : {}),
                     size: stat.size,
                     createdAt: stat.birthtime.toISOString(),
                     modifiedAt: stat.mtime.toISOString()
@@ -211,8 +214,20 @@ export class NotesService {
     async setTags(name: string, tags: string[]): Promise<NoteInfo> {
         await fs.access(this.file(name));
         const clean = normalizeTags(tags);
-        await this.index.update(value => ({ notes: { ...value.notes, [this.key(name)]: { tags: clean } } }));
+        await this.index.update(value => ({ notes: { ...value.notes, [this.key(name)]: { ...value.notes?.[this.key(name)], tags: clean } } }));
         return this.info(this.key(name));
+    }
+
+    /** Sets the command that runs a note. An empty command removes it, so the note uses the default program again. */
+    async setRunCommand(name: string, command: string): Promise<NoteInfo> {
+        await fs.access(this.file(name));
+        const key = this.key(name);
+        const value = command.trim().slice(0, MAX_RUN_COMMAND_LENGTH);
+        await this.index.update(index => {
+            const { runCommand: _old, ...entry } = index.notes?.[key] ?? { tags: [] };
+            return { notes: { ...index.notes, [key]: value ? { ...entry, runCommand: value } : entry } };
+        });
+        return this.info(key);
     }
 
     /** The full path of a note, for "Reveal in Finder" and "Copy path". */

@@ -43,6 +43,18 @@ describe('NotesService', () => {
         expect(JSON.parse(await readFile(path.join(folder, '.shipwarden-notes.json'), 'utf8')).notes).toEqual({ 'b.md': { tags: ['work', 'sql'] } });
     });
 
+    it('keeps the run command next to the tags, also after a rename', async () => {
+        await notes.create('q.sql');
+        await notes.setTags('q.sql', ['db']);
+        expect((await notes.setRunCommand('q.sql', ' psql -f {file} ')).runCommand).toBe('psql -f {file}');
+        expect((await notes.setTags('q.sql', ['db', 'work'])).runCommand).toBe('psql -f {file}');
+        expect(await notes.rename('q.sql', 'r.sql')).toMatchObject({ tags: ['db', 'work'], runCommand: 'psql -f {file}' });
+        const cleared = await notes.setRunCommand('r.sql', '  ');
+        expect(cleared.runCommand).toBeUndefined();
+        expect(cleared.tags).toEqual(['db', 'work']);
+        await expect(notes.setRunCommand('missing.sql', 'x')).rejects.toThrow();
+    });
+
     it('does not rename over another note', async () => {
         await notes.create('a.md');
         await notes.create('b.md');

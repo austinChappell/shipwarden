@@ -96,6 +96,8 @@ export const keyRoots = {
     keybindings: ['keybindings'],
     /** The app version, the data folder and the login name. Local data: no request goes to a service. */
     appInfo: ['appInfo'],
+    /** The path of the notes folder of the Scratch Pad. Local data: no request goes to a service. */
+    notesFolder: ['notesFolder'],
     /** The plans of the projects. Local data: no request goes to a service. */
     plans: ['plans'],
     /** The PR groups of the Review view. Local data: no request goes to a service. */

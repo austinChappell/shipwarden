@@ -699,6 +699,8 @@ export interface ShipWardenApi {
         /** Moves the note file to the Trash. */
         delete(name: string): Promise<void>;
         setTags(name: string, tags: string[]): Promise<NoteInfo>;
+        /** Sets the command that runs the note. An empty command goes back to the default program of the extension. */
+        setRunCommand(name: string, command: string): Promise<NoteInfo>;
         /** Shows the note file, or the folder without a name, in Finder. */
         reveal(name?: string): void;
         /** Called when a file in the notes folder changes, also from another app. */
@@ -1141,6 +1143,7 @@ export const IpcChannels = {
     notesRename: 'notes:rename',
     notesDelete: 'notes:delete',
     notesSetTags: 'notes:setTags',
+    notesSetRunCommand: 'notes:setRunCommand',
     notesReveal: 'notes:reveal',
     notesChanged: 'notes:changed',
     notificationsShow: 'notifications:show',
