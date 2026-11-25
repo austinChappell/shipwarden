@@ -31,6 +31,14 @@ describe('parseStatus', () => {
         expect(parseStatus(z('# branch.oid abc', '# branch.head (detached)')).branch).toBeUndefined();
     });
 
+    it('marks an upstream branch that is not on the remote', () => {
+        // Git writes no "branch.ab" line when the commit of the upstream branch is not present.
+        const gone = parseStatus(z('# branch.oid abc', '# branch.head feat', '# branch.upstream origin/feat'));
+        expect(gone).toMatchObject({ upstream: 'origin/feat', upstreamGone: true, ahead: 0, behind: 0 });
+        expect(parseStatus(z('# branch.oid abc', '# branch.head feat', '# branch.upstream origin/feat', '# branch.ab +0 -0')).upstreamGone).toBeUndefined();
+        expect(parseStatus(z('# branch.oid abc', '# branch.head feat')).upstreamGone).toBeUndefined();
+    });
+
     it('puts staged, unstaged, untracked and conflicted files in their lists', () => {
         const status = parseStatus(
             z(

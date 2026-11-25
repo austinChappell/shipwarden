@@ -192,6 +192,42 @@ func readCommands() {
     }
 }
 
+/// The environment variable that tells the helper that it is its own responsible process.
+let disclaimedVariable = "SHIPWARDEN_DICTATION_DISCLAIMED"
+
+/// Starts this program again in the same process, as its own responsible process.
+///
+/// macOS (TCC) reads the usage texts from the Info.plist of the responsible process. That process is the app that
+/// started the helper, or the terminal app in development. When that Info.plist has no
+/// NSSpeechRecognitionUsageDescription, macOS stops the helper with SIGABRT. After this call, macOS reads the
+/// Info.plist in the binary of the helper. Returns when the call is not possible. The helper then continues as before.
+func becomeResponsibleProcess() {
+    if ProcessInfo.processInfo.environment[disclaimedVariable] != nil { return }
+    // responsibility_spawnattrs_setdisclaim is a private function of libsystem. Chromium and iTerm2 use it too.
+    typealias SetDisclaim = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, Int32) -> Int32
+    let defaultHandle = UnsafeMutableRawPointer(bitPattern: -2)  // RTLD_DEFAULT
+    guard let symbol = dlsym(defaultHandle, "responsibility_spawnattrs_setdisclaim") else { return }
+    let setDisclaim = unsafeBitCast(symbol, to: SetDisclaim.self)
+
+    var attributes: posix_spawnattr_t?
+    guard posix_spawnattr_init(&attributes) == 0 else { return }
+    defer { posix_spawnattr_destroy(&attributes) }
+    // POSIX_SPAWN_SETEXEC replaces this process, so the PID, stdin, and stdout stay the same.
+    guard posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETEXEC)) == 0,
+          setDisclaim(&attributes, 1) == 0 else { return }
+
+    setenv(disclaimedVariable, "1", 1)
+    let path = Bundle.main.executablePath ?? CommandLine.arguments[0]
+    let arguments = CommandLine.arguments.map { strdup($0) } + [nil]
+    defer { arguments.forEach { free($0) } }
+    var pid: pid_t = 0
+    // On success, posix_spawn does not return.
+    _ = posix_spawn(&pid, path, nil, &attributes, arguments, environ)
+    unsetenv(disclaimedVariable)
+}
+
+becomeResponsibleProcess()
+
 let localeId = localeArgument()
 let recognizer = localeId.map { SFSpeechRecognizer(locale: Locale(identifier: $0)) } ?? SFSpeechRecognizer()
 guard let recognizer else {

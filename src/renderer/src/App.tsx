@@ -262,6 +262,8 @@ export function App() {
     });
     const { projects, activeProject, repos, worktreesByRepo, worktrees, selectedRepo, showProject } = project;
     const selected = worktrees.find(worktree => worktree.path === selectedPath);
+    /** The repositories of all projects for the repository menu of "Start in worktree", in the order of the sidebar. */
+    const repoGroups = useMemo(() => projects?.projects.map(item => ({ name: item.name, repos: item.repos })) ?? [], [projects]);
     /** The worktree of the tabs on the screen: the home folder in the Terminal view, else the selected worktree. */
     const workspaceWorktree = terminalView ? homeWorktree : selected;
     const agents = useAgentActions({
@@ -503,14 +505,21 @@ export function App() {
         openViewAt('plans', { page: id });
     };
 
-    /** A click on a notification: show the worktree (and the agent tab), or the Dashboard. */
+    /**
+     * A click on a notification: show the worktree (and the agent tab), or the Dashboard. When the worktree is in
+     * another project, that project becomes active first.
+     */
     const openNotificationTarget = (target: NotificationTarget | undefined) => {
         if (!target) return;
         if (target.view === 'dashboard' || target.view === 'automations') {
             setMainView(target.view);
             return;
         }
-        showSessionTab(target.worktreePath, target.sessionId);
+        const { worktreePath, sessionId } = target;
+        void (async () => {
+            if (worktreePath !== homeFolder) await worktreeActions.showAnyWorktree(worktreePath);
+            showSessionTab(worktreePath, sessionId);
+        })().catch(err => setError(errorText(err)));
     };
     const notifyAgent = useNotifications({
         appSettings,
@@ -1215,8 +1224,7 @@ export function App() {
                                 <main className="workspace">
                                     <TasksView
                                         key={`${activeProject.id}:${viewEntry}`}
-                                        projectId={activeProject.id}
-                                        repos={repos}
+                                        repoGroups={repoGroups}
                                         links={links}
                                         onStartTask={worktreeActions.startTask}
                                         onLinkWorktree={worktreeActions.chooseWorktreeForTask}
@@ -1232,10 +1240,10 @@ export function App() {
                                             worktreesByRepo,
                                             start: worktreeActions.startCompare,
                                             keep: worktreeActions.keepCompareRun,
-                                            onOpenWorktree: path => void worktreeActions.showTaskWorktree(path).catch(err => setError(errorText(err)))
+                                            onOpenWorktree: path => void worktreeActions.showAnyWorktree(path).catch(err => setError(errorText(err)))
                                         }}
                                         repoLabel={repoLabel}
-                                        onOpenWorktree={path => void worktreeActions.showTaskWorktree(path).catch(err => setError(errorText(err)))}
+                                        onOpenWorktree={path => void worktreeActions.showAnyWorktree(path).catch(err => setError(errorText(err)))}
                                     />
                                 </main>
                             )}
@@ -1281,7 +1289,7 @@ export function App() {
                                                 const path = drawerSession.worktreePath;
                                                 if (!path) return;
                                                 void worktreeActions
-                                                    .showTaskWorktree(path)
+                                                    .showAnyWorktree(path)
                                                     .then(() => activate(path, `t:${drawerSession.id}`))
                                                     .catch(err => setError(errorText(err)));
                                             }}
@@ -1350,6 +1358,7 @@ export function App() {
                                     <PlansView
                                         key={`${activeProject.id}:${viewEntry}`}
                                         project={activeProject}
+                                        projects={projects?.projects ?? []}
                                         repoLabel={repoLabel}
                                         repoColor={repo => appSettings.repos[repo]?.color}
                                         route={routeOf('plans')}

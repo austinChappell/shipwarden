@@ -28,6 +28,7 @@ import { DraftButton } from './DraftButton';
 import { OverlapNote } from './OverlapChip';
 import { useWorktreeOverlap } from '../git/overlap-query';
 import { afterRebase, confirmForcePush, conflictPromptFor } from '../git/rebase-actions';
+import { branchPushed } from '../github/pull-request-mutations';
 
 interface Props {
     worktree: string;
@@ -190,6 +191,7 @@ export function ChangesPanel({
     const push = () =>
         act('push', async () => {
             await api.push(worktree);
+            void branchPushed(worktree);
             setNotice('Pushed the branch.');
             setTimeout(() => setNotice(undefined), 6000);
         });
@@ -258,7 +260,7 @@ export function ChangesPanel({
     const canCommit = message.trim() !== '' && (staged.length > 0 || amend) && !busy;
     const upstream = changes.upstream;
     const diverged = hasDiverged(changes) && !rebase;
-    const canPush = !!changes.branch && !changes.unborn && (changes.ahead > 0 || !changes.upstream) && !rebase && !diverged;
+    const canPush = !!changes.branch && !changes.unborn && (changes.ahead > 0 || !changes.upstream || !!changes.upstreamGone) && !rebase && !diverged;
     const spinner = (label: string, icon: ReactNode) => (busy === label ? <LoaderCircle size={13} className="spin" /> : icon);
 
     const row = (change: FileChange, side: ChangeSide | 'conflict') => {
@@ -336,7 +338,7 @@ export function ChangesPanel({
                     </span>
                 )}
                 <span className="header-spacer" />
-                {changes.upstream && changes.behind === 0 && !rebase && (
+                {changes.upstream && !changes.upstreamGone && changes.behind === 0 && !rebase && (
                     <Button
                         disabled={!!busy}
                         title={`Pull from ${changes.upstream} with a fast-forward only${changes.behind ? `: ${changes.behind} new commits` : ''}`}
@@ -445,6 +447,11 @@ export function ChangesPanel({
                     >
                         Pull
                     </Button>
+                </div>
+            )}
+            {changes.upstreamGone && !rebase && (
+                <div className="changes-upstream-gone" role="status">
+                    The remote has no branch {changes.upstream}. Push the branch to make it again.
                 </div>
             )}
             {fetched?.error && (

@@ -21,7 +21,8 @@ afterEach(() => {
     rmSync(root, { recursive: true, force: true });
 });
 
-const installer = (path = '') => new CliInstaller({ launcher, home: join(root, 'home'), path: async () => path, folders: [system, local] });
+const installer = (path = '', alias?: string) =>
+    new CliInstaller({ launcher, home: join(root, 'home'), path: async () => path, alias: async () => alias, folders: [system, local] });
 
 describe('CliInstaller', () => {
     it('adds the link in the first writable folder', async () => {
@@ -54,6 +55,46 @@ describe('CliInstaller', () => {
         const state = await installer().remove();
         expect(state.installed).toBeUndefined();
         expect(readlinkSync(join(local, 'shipwarden'))).toBe('/other/shipwarden');
+    });
+
+    it('adds the alias link next to the shipwarden link', async () => {
+        chmodSync(system, 0o555);
+        const state = await installer('', 'sw').install();
+        expect(state.installed).toBe(join(local, 'shipwarden'));
+        expect(state.alias).toBe(join(local, 'sw'));
+        expect(readlinkSync(join(local, 'sw'))).toBe(launcher);
+    });
+
+    it('keeps another file with the name of the alias, and tells about it', async () => {
+        writeFileSync(join(system, 'sw'), '#!/bin/sh\n');
+        const state = await installer('', 'sw').install();
+        expect(state.installed).toBe(join(system, 'shipwarden'));
+        expect(state.alias).toBeUndefined();
+        expect(state.aliasConflict).toBe(join(system, 'sw'));
+    });
+
+    it('changes the alias link when the name changes, and removes it when the alias is off', async () => {
+        await installer('', 'sw').install();
+        const renamed = await installer('', 'ship').sync();
+        expect(renamed.alias).toBe(join(system, 'ship'));
+        expect(() => readlinkSync(join(system, 'sw'))).toThrow();
+
+        const off = await installer('', undefined).sync();
+        expect(off.alias).toBeUndefined();
+        expect(() => readlinkSync(join(system, 'ship'))).toThrow();
+        expect(readlinkSync(join(system, 'shipwarden'))).toBe(launcher);
+    });
+
+    it('adds no alias link on sync when the shipwarden link does not exist', async () => {
+        const state = await installer('', 'sw').sync();
+        expect(state.installed).toBeUndefined();
+        expect(() => readlinkSync(join(system, 'sw'))).toThrow();
+    });
+
+    it('removes the alias link with the shipwarden link', async () => {
+        await installer('', 'sw').install();
+        await installer('', 'sw').remove();
+        expect(() => readlinkSync(join(system, 'sw'))).toThrow();
     });
 
     it('tells when no link exists', async () => {

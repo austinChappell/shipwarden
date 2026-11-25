@@ -139,7 +139,7 @@ export const NOTICE_TIPS: readonly Tip[] = [
     {
         id: 'cliCommand',
         title: 'Control ShipWarden from a terminal',
-        body: 'Install the shipwarden command in Settings › Agents. Scripts and agents can then create worktrees, start agents, send prompts, wait for a turn, move tasks, and run automations. Run "shipwarden skill install" to teach Claude Code the command.',
+        body: 'Install the shipwarden command in Settings › Agents. It also adds the short name "sw". Scripts and agents can then create worktrees, start agents, send prompts, wait for a turn, move tasks, and run automations. Run "shipwarden skill install" to teach Claude Code the command.',
         action: { kind: 'settings', section: 'agents', label: 'Open Settings › Agents' }
     },
     {

@@ -47,7 +47,13 @@ text. After that time, the newest partial text is the final text.
 
 ## Permissions
 
-macOS asks for the microphone and speech recognition permissions at the first dictation. macOS gives the request to the
-app that started the helper (the "responsible" process), so the dialog names ShipWarden. In development, it names
-Electron or the terminal app that runs `npm run dev`. To reset the permissions, run
-`tccutil reset Microphone dev.shipwarden.app` and `tccutil reset SpeechRecognition dev.shipwarden.app`.
+macOS asks for the microphone and speech recognition permissions at the first dictation. By default, macOS reads the
+usage texts from the Info.plist of the app that started a process (the "responsible" process). In development, that is
+Electron or the terminal app that runs `npm run dev`. Their Info.plist has no `NSSpeechRecognitionUsageDescription`, so
+macOS stopped the helper with SIGABRT.
+
+Thus the helper starts itself again at launch, as its own responsible process
+(`responsibility_spawnattrs_setdisclaim` with `POSIX_SPAWN_SETEXEC`). The PID, stdin, and stdout stay the same. macOS
+then reads the usage texts from the Info.plist in the helper binary, and the dialog names ShipWarden Dictation. To reset
+the permissions, run `tccutil reset Microphone dev.shipwarden.app.dictation` and
+`tccutil reset SpeechRecognition dev.shipwarden.app.dictation`.

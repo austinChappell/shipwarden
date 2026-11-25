@@ -1,6 +1,7 @@
 #!/bin/sh
 # The `shipwarden` command. It runs the CLI script with the Node of the ShipWarden app (ELECTRON_RUN_AS_NODE).
 # Settings › Agents › "Install the shipwarden command" adds a link to this file in /usr/local/bin or ~/.local/bin.
+# The short name, "sw" by default, is a second link to this file.
 set -e
 
 # Follow the links to the real file, so the paths below are relative to the app.

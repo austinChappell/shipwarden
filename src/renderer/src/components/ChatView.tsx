@@ -1,15 +1,31 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react';
 import { ArrowUp, CircleAlert, CircleCheck, FileText, LoaderCircle, MessagesSquare, Paperclip, Square, SquareTerminal, X } from 'lucide-react';
 import { CHAT_AGENT_NAMES, type ChatItem, type ChatToolItem, chatFormatOf } from '@shared/agent-chat';
 import { isImageOnlyPaste } from '@shared/shortcuts';
 import { insertDictatedText } from '@shared/dictation';
-import { attachmentKindOf, type ConvertedDocument, documentPrompt, MAX_DOCUMENTS, truncationNote, unsupportedFileText } from '@shared/documents';
+import { attachmentKindOf, MAX_DOCUMENTS, truncationNote, unsupportedFileText } from '@shared/documents';
 import type { TerminalSession } from '@shared/terminal';
-import { bracketedPaste, countImageMarks, showsAgentDialog } from '@shared/agent-text';
+import { showsAgentDialog } from '@shared/agent-text';
 import { errorText, formatDuration } from '../util';
 import { screenTextOf } from '../app/use-agent-actions';
 import { agentViewStore } from '../terminal/agent-view-store';
 import { useTranscript } from '../terminal/transcript-store';
+import {
+    addChatDocument,
+    addChatImage,
+    clearChatError,
+    queueChatPrompt,
+    removeChatDocument,
+    removeChatImage,
+    removeQueuedPrompt,
+    sendChatPrompt,
+    sendQueue,
+    sendQueuedPromptNow,
+    setChatDocument,
+    setChatDraft,
+    settleSentPrompts,
+    useChatInput
+} from '../terminal/chat-input-store';
 import { useDomFind } from './dom-find';
 import { cx } from './ui/cx';
 import { Button, IconButton } from './ui';
@@ -19,42 +35,6 @@ import { DictationBar, DictationButton } from '../dictation/Dictation';
 import { dictationStore } from '../dictation/dictation-store';
 
 const api = window.shipwarden;
-
-/** The time between the paste of a prompt and the Enter key. The agent must get the paste first. */
-const SUBMIT_DELAY_MS = 200;
-
-/** The maximum time that the agent can take to read an image from the clipboard and show its mark. */
-const IMAGE_READ_TIMEOUT_MS = 5000;
-
-/** How often the chat checks the screen for the mark of a new image. */
-const IMAGE_CHECK_MS = 150;
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-/**
- * Gives an image to the agent: the image goes on the clipboard, and Ctrl+V makes the agent read it. Returns when the
- * agent shows the mark of the image ("[Image #1]") in its prompt. Claude Code and Codex show the same mark. Throws an
- * error when the mark does not come. `agent` is the agent name for the error.
- */
-async function giveImage(sessionId: string, dataUrl: string, agent: string): Promise<void> {
-    const marks = async () => countImageMarks((await screenTextOf(sessionId)) ?? '');
-    const before = await marks();
-    await api.terminals.pasteImage(sessionId, dataUrl);
-    const deadline = Date.now() + IMAGE_READ_TIMEOUT_MS;
-    while (Date.now() < deadline) {
-        await delay(IMAGE_CHECK_MS);
-        if ((await marks()) > before) return;
-    }
-    throw new Error(`${agent} did not take the image.`);
-}
-
-/** A document in the composer: converting, or ready for the next prompt. */
-interface AttachedDocument {
-    id: string;
-    name: string;
-    /** Undefined while the main process converts the file. */
-    document?: ConvertedDocument;
-}
 
 /** A file that the user dropped, pasted, or chose. `file` is set for a dropped or pasted file. */
 interface IncomingFile {
@@ -207,26 +187,20 @@ export function ChatView({ session, focused = true }: Props) {
     const [slowStart, setSlowStart] = useState(false);
     /** The agent waits for an answer that the chat cannot give: a permission, or a question at the start. */
     const waiting = state === 'waiting' || startQuestion;
-    /** The agent cannot take a prompt now. */
-    const blocked = waiting || starting;
-    const [pending, setPending] = useState<{ text: string; images: string[]; users: number }>();
+    /** The agent can take a prompt now. While it starts or works, a new prompt goes in the queue. */
+    const ready = !waiting && !starting && !working;
     /**
-     * The images that the user pasted for the next prompt, as data URLs. The agent gets them when the user sends the
-     * prompt, so the user can remove an image before that. The previews use data URLs, because the content security
-     * policy of the page blocks blob URLs.
+     * The prompt box: the text, the pasted images, the queue, and the sent prompts. The store keeps them when the
+     * chat closes. The previews use data URLs, because the content security policy of the page blocks blob URLs.
      */
-    const [images, setImages] = useState<string[]>([]);
-    /** The documents for the next prompt. The agent gets the path of the text file of each document. */
-    const [documents, setDocuments] = useState<AttachedDocument[]>([]);
+    const input = useChatInput(session.id);
+    const { draft, images, documents, queue, sent, sending } = input;
     /** The error of the last attachment, for example a file type that the chat cannot attach. */
     const [attachError, setAttachError] = useState<string>();
     /** True while the user drags files over the chat. */
     const [dragging, setDragging] = useState(false);
-    /** True while the chat gives the prompt and its images to the agent. */
-    const [sending, setSending] = useState(false);
-    const [sendError, setSendError] = useState<string>();
-    const transcript = useTranscript(file, working || starting || waiting || !!pending, `${state}:${session.agentStateAt ?? 0}`);
-    const [draft, setDraft] = useState('');
+    const pending = sent.length > 0;
+    const transcript = useTranscript(file, working || starting || waiting || pending, `${state}:${session.agentStateAt ?? 0}`);
     const listRef = useRef<HTMLDivElement>(null);
     const findBar = useDomFind(listRef, 'Find in the chat');
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -245,18 +219,24 @@ export function ChatView({ session, focused = true }: Props) {
         return () => clearTimeout(timer);
     }, [starting]);
 
-    const userCount = transcript.items.filter(item => item.kind === 'user').length;
-    // The prompt shows as pending until the transcript has it.
+    // A sent prompt shows as pending until the transcript has a user prompt with its text.
+    const userTexts = useMemo(() => transcript.items.flatMap(item => (item.kind === 'user' ? [item.text] : [])), [transcript.items]);
     useEffect(() => {
-        if (pending && userCount > pending.users) setPending(undefined);
-    }, [pending, userCount]);
+        settleSentPrompts(session.id, userTexts);
+    }, [session.id, userTexts]);
+
+    // The queue sends its prompts when the agent ends its turn. The store does this too, but it can miss a state that
+    // the session had before the chat opened.
+    useEffect(() => {
+        if (ready && queue.length > 0 && !sending) void sendQueue(session.id, file);
+    }, [ready, queue.length, sending, session.id, file]);
 
     // The chat stays at the bottom while the user does not scroll up.
     // biome-ignore lint/correctness/useExhaustiveDependencies: A new item, a pending prompt, or a state change can make the list longer.
     useLayoutEffect(() => {
         const list = listRef.current;
         if (list && stick.current) list.scrollTop = list.scrollHeight;
-    }, [transcript.items, pending, state, session.agentMessage]);
+    }, [transcript.items, sent, state, session.agentMessage]);
 
     useEffect(() => {
         if (focused && !waiting) inputRef.current?.focus();
@@ -270,7 +250,7 @@ export function ChatView({ session, focused = true }: Props) {
                 const input = inputRef.current;
                 if (!input) return false;
                 const next = insertDictatedText(input.value, input.selectionStart, input.selectionEnd, text);
-                setDraft(next.value);
+                setChatDraft(session.id, next.value);
                 requestAnimationFrame(() => {
                     if (input.disabled) return;
                     input.focus();
@@ -292,47 +272,18 @@ export function ChatView({ session, focused = true }: Props) {
 
     const converting = documents.some(item => !item.document);
     const readyDocuments = documents.flatMap(item => (item.document ? [item.document] : []));
-    const canSend = (draft.trim() !== '' || images.length > 0 || readyDocuments.length > 0) && !blocked && !sending && !converting;
+    const canSend = (draft.trim() !== '' || images.length > 0 || readyDocuments.length > 0) && !waiting && !converting;
 
     /**
-     * Gives the images to the agent one after the other, then the text, then Enter. The page images of a PDF without
-     * text go with the images. The text starts with the list of the documents (see `documentPrompt`).
+     * Sends the prompt of the box. While the agent starts or works, the prompt goes in the queue, and the queue sends
+     * it when the agent ends its turn.
      */
-    const send = async () => {
+    const send = () => {
         if (!canSend) return;
-        const text = draft.trim();
-        const id = session.id;
-        const sentImages = images;
-        const sentDocuments = documents;
-        const sent = [...sentImages, ...readyDocuments.flatMap(item => (item.kind === 'images' ? item.images : []))];
-        const prompt = documentPrompt(readyDocuments, text);
-        setSending(true);
-        setSendError(undefined);
         setAttachError(undefined);
-        setPending({ text: prompt, images: sent, users: userCount });
-        setImages([]);
-        setDocuments([]);
-        setDraft('');
         stick.current = true;
-        try {
-            for (const image of sent) await giveImage(id, image, agentName);
-            if (prompt) {
-                api.terminals.write(id, bracketedPaste(prompt));
-                await delay(SUBMIT_DELAY_MS);
-            }
-            api.terminals.write(id, '\r');
-        } catch (err) {
-            // The prompt of the agent can have some of the images now. The terminal shows them.
-            setPending(undefined);
-            setImages(sentImages);
-            setDocuments(sentDocuments);
-            setDraft(current => current || text);
-            setSendError(
-                `${errorText(err)} The prompt did not go to the agent. The prompt in the terminal can have some of the images. Remove them there, or try again.`
-            );
-        } finally {
-            setSending(false);
-        }
+        if (ready && queue.length === 0 && !sending) void sendChatPrompt(session.id, agentName, file);
+        else queueChatPrompt(session.id, agentName);
     };
 
     /** Converts one document and shows it as a chip. A failure removes the chip and shows the error. */
@@ -341,17 +292,17 @@ export function ChatView({ session, focused = true }: Props) {
             setAttachError(`ShipWarden cannot find the file "${name}" on the Mac. Save the file, then attach it again.`);
             return;
         }
-        const id = crypto.randomUUID();
-        setDocuments(current => [...current, { id, name }]);
+        const id = session.id;
+        const documentId = addChatDocument(id, name);
         try {
             const result = await api.documents.convert(path);
-            if (result.ok) setDocuments(current => current.map(item => (item.id === id ? { ...item, document: result.document } : item)));
+            if (result.ok) setChatDocument(id, documentId, result.document);
             else {
-                setDocuments(current => current.filter(item => item.id !== id));
+                removeChatDocument(id, documentId);
                 setAttachError(result.error);
             }
         } catch (err) {
-            setDocuments(current => current.filter(item => item.id !== id));
+            removeChatDocument(id, documentId);
             setAttachError(errorText(err));
         }
     };
@@ -374,7 +325,7 @@ export function ChatView({ session, focused = true }: Props) {
             } else {
                 try {
                     const url = incoming.file ? await readDataUrl(incoming.file) : await api.documents.readImage(incoming.path);
-                    setImages(current => [...current, url]);
+                    addChatImage(session.id, url);
                 } catch (err) {
                     setAttachError(errorText(err));
                 }
@@ -427,7 +378,7 @@ export function ChatView({ session, focused = true }: Props) {
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
-            void send();
+            send();
         }
     };
 
@@ -436,6 +387,7 @@ export function ChatView({ session, focused = true }: Props) {
 
     const groups = groupItems(transcript.items);
     const empty = !transcript.loading && transcript.items.length === 0 && !pending;
+    const sendError = input.error;
     // Codex stays "done" after a turn. Claude Code changes from "done" to "idle" after a time.
     const done = (state === 'idle' || state === 'done') && !pending ? doneText(transcript.items, session.agentStateAt) : undefined;
 
@@ -461,7 +413,7 @@ export function ChatView({ session, focused = true }: Props) {
             >
                 {empty && starting ? (
                     <EmptyState icon={LoaderCircle} title={`Starting ${agentName}`}>
-                        You can write a prompt now. You can send it when the agent is ready.
+                        You can write a prompt now. It goes to the agent when the agent is ready.
                     </EmptyState>
                 ) : empty ? (
                     <EmptyState icon={MessagesSquare} title="No messages yet">
@@ -486,11 +438,11 @@ export function ChatView({ session, focused = true }: Props) {
                                 <Markdown key={group.id} className="chat-agent" text={group.kind === 'agent' ? group.text : ''} />
                             )
                         )}
-                        {pending && (
-                            <div className="chat-user pending">
-                                <UserBubble text={pending.text} images={pending.images} />
+                        {sent.map(prompt => (
+                            <div className="chat-user pending" key={prompt.id}>
+                                <UserBubble text={prompt.text} images={prompt.images} />
                             </div>
-                        )}
+                        ))}
                         {done && (
                             <div className="chat-status done" role="status">
                                 <CircleCheck size={13} strokeWidth={2} className="chat-done-icon" aria-hidden="true" />
@@ -535,7 +487,7 @@ export function ChatView({ session, focused = true }: Props) {
                 <div className="chat-waiting error" role="alert">
                     <CircleAlert size={14} strokeWidth={1.8} className="chat-waiting-icon" />
                     <span className="chat-waiting-text">{sendError}</span>
-                    <IconButton icon={<X size={14} strokeWidth={1.8} />} label="Close the message" onClick={() => setSendError(undefined)} />
+                    <IconButton icon={<X size={14} strokeWidth={1.8} />} label="Close the message" onClick={() => clearChatError(session.id)} />
                 </div>
             )}
             {attachError && (
@@ -550,9 +502,30 @@ export function ChatView({ session, focused = true }: Props) {
                 className="chat-composer"
                 onSubmit={event => {
                     event.preventDefault();
-                    void send();
+                    send();
                 }}
             >
+                {queue.length > 0 && (
+                    // biome-ignore lint/a11y/noRedundantRoles: Safari removes the list role when the list has no bullets.
+                    <ul className="chat-queue" role="list" aria-label="Queued prompts">
+                        {queue.map(prompt => (
+                            <li key={prompt.id} className="chat-queued">
+                                <span className="chat-queued-text">
+                                    {[prompt.text, ...attachmentCounts(prompt.images.length, prompt.documents.length)].filter(Boolean).join(' · ')}
+                                </span>
+                                <Button size="sm" disabled={waiting} onClick={() => void sendQueuedPromptNow(session.id, prompt.id, file)}>
+                                    Send now
+                                </Button>
+                                <IconButton
+                                    size="sm"
+                                    icon={<X size={13} strokeWidth={1.8} />}
+                                    label="Remove the queued prompt"
+                                    onClick={() => removeQueuedPrompt(session.id, prompt.id)}
+                                />
+                            </li>
+                        ))}
+                    </ul>
+                )}
                 {images.length > 0 && (
                     <div className="chat-attachments">
                         {images.map((url, index) => (
@@ -565,7 +538,7 @@ export function ChatView({ session, focused = true }: Props) {
                                     title="Remove"
                                     aria-label={`Remove pasted attachment ${index + 1}`}
                                     disabled={sending}
-                                    onClick={() => setImages(current => current.filter((_, item) => item !== index))}
+                                    onClick={() => removeChatImage(session.id, index)}
                                 >
                                     <X size={11} strokeWidth={2.4} />
                                 </button>
@@ -592,7 +565,7 @@ export function ChatView({ session, focused = true }: Props) {
                                         title="Remove"
                                         aria-label={`Remove ${item.name}`}
                                         disabled={sending}
-                                        onClick={() => setDocuments(current => current.filter(other => other.id !== item.id))}
+                                        onClick={() => removeChatDocument(session.id, item.id)}
                                     >
                                         <X size={11} strokeWidth={2.4} />
                                     </button>
@@ -618,12 +591,12 @@ export function ChatView({ session, focused = true }: Props) {
                     placeholder={
                         waiting
                             ? 'Answer the agent in the terminal first.'
-                            : starting
-                              ? `${agentName} is starting…`
+                            : starting || working
+                              ? 'Write a prompt. It waits in the queue until the agent is ready.'
                               : 'Write a prompt. Press Shift+Enter for a new line.'
                     }
                     aria-label="Prompt"
-                    onChange={event => setDraft(event.target.value)}
+                    onChange={event => setChatDraft(session.id, event.target.value)}
                     onKeyDown={onKeyDown}
                     onPaste={onPaste}
                 />
@@ -645,11 +618,19 @@ export function ChatView({ session, focused = true }: Props) {
                         type="submit"
                         variant="outline"
                         icon={<ArrowUp size={14} strokeWidth={2} />}
-                        label={converting ? 'Converting the documents' : 'Send'}
+                        label={converting ? 'Converting the documents' : ready && queue.length === 0 ? 'Send' : 'Add to the queue'}
                         disabled={!canSend}
                     />
                 </div>
             </form>
         </div>
     );
+}
+
+/** Returns the counts of the attachments of a queued prompt, for example ["2 images", "1 document"]. */
+function attachmentCounts(images: number, documents: number): string[] {
+    const counts: string[] = [];
+    if (images > 0) counts.push(images === 1 ? '1 image' : `${images} images`);
+    if (documents > 0) counts.push(documents === 1 ? '1 document' : `${documents} documents`);
+    return counts;
 }

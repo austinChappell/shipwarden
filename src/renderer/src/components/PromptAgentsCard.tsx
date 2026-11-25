@@ -4,6 +4,7 @@ import { MAX_BATCH_PROMPT } from '@shared/batch-prompt';
 import { pluralize } from '@shared/format';
 import type { BatchSendResult } from '../github/pr-group-agents';
 import { errorText } from '../util';
+import { useTextDraft } from '../app/text-drafts';
 import { Button, Card, CardBody, CardHeader, Checkbox, TextArea } from './ui';
 
 /** A pull request that can get the prompt. */
@@ -19,6 +20,8 @@ export interface PromptTarget {
 interface Props {
     targets: readonly PromptTarget[];
     description: string;
+    /** The key of the prompt draft. The draft stays when the user opens another page and comes back. */
+    draftKey: string;
     /** Sends the prompt to the agents of the selected targets. Returns a result for each target. */
     onSend(keys: string[], prompt: string, push: boolean): Promise<BatchSendResult[]>;
 }
@@ -27,10 +30,10 @@ interface Props {
  * One prompt for the agents of more than one pull request. The user selects the pull requests, writes the prompt, and
  * selects "Send". The agent in the worktree of each selected pull request gets the prompt.
  */
-export function PromptAgentsCard({ targets, description, onSend }: Props) {
+export function PromptAgentsCard({ targets, description, draftKey, onSend }: Props) {
     const enabled = targets.filter(target => !target.disabledReason);
     const [unselected, setUnselected] = useState<ReadonlySet<string>>(new Set());
-    const [prompt, setPrompt] = useState('');
+    const [prompt, setPrompt] = useTextDraft(draftKey);
     const [push, setPush] = useState(true);
     const [sending, setSending] = useState(false);
     const [results, setResults] = useState<Record<string, string | undefined>>();

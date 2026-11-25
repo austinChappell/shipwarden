@@ -428,6 +428,11 @@ export function useWorktreeActions(options: Options) {
             await refreshWorktrees(repoPath);
             // In the background, the user works on something else. Do not move the user to the new worktree.
             if (!inBackground()) {
+                // A task can start in a repository of another project. Show the project of the repository.
+                if (!options.repos.includes(repoPath)) {
+                    const owner = options.projects?.projects.find(project => project.repos.includes(repoPath));
+                    if (owner && owner.id !== options.activeProjectId) await options.switchProject(owner.id);
+                }
                 setSelectedPath(worktree.path);
                 // The dialog can open from the Review view or the commit graph. The new worktree shows in all cases.
                 setMainView('worktree');
@@ -621,10 +626,10 @@ export function useWorktreeActions(options: Options) {
     };
 
     /**
-     * Shows a worktree from the Tasks view. When the worktree is in another project, that project becomes active first,
+     * Shows a worktree of any project. When the worktree is in another project, that project becomes active first,
      * so the worktree is in the sidebar.
      */
-    const showTaskWorktree = async (path: string) => {
+    const showAnyWorktree = async (path: string) => {
         if (!options.worktrees.some(worktree => worktree.path === path)) {
             const byRepo = await allWorktreesByRepo();
             const owner = options.projects?.projects.find(project => project.repos.some(repo => byRepo[repo]?.some(worktree => worktree.path === path)));
@@ -702,7 +707,7 @@ export function useWorktreeActions(options: Options) {
         linkTask,
         unlinkTask,
         chooseWorktreeForTask,
-        showTaskWorktree,
+        showAnyWorktree,
         worktreeMenu
     };
 }
