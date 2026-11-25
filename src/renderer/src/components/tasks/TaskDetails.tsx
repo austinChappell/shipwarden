@@ -4,7 +4,7 @@ import { timeAgo } from '../../util';
 import { openLink } from '../../links';
 import { usePageLink } from '../../app/page-link';
 import { Button, IconButton, Select, SkeletonRows } from '../ui';
-import { editableParts, formatField } from './task-view-logic';
+import { editableParts, formatField, type RepoGroup } from './task-view-logic';
 import { FieldRow, StatusDot } from './TaskParts';
 import { TaskActions } from './TaskActions';
 import { AttachmentsSection, ChecklistsSection, CustomFieldsSection, DetailMetaRows, RelatedTasksSection } from './TaskDetailSections';
@@ -21,6 +21,7 @@ interface Props {
     state: ReturnType<typeof useTaskDetail>;
     worktreeFor(task: Task): string | undefined;
     repos: string[];
+    repoGroups: RepoGroup[];
     startRepo: string;
     chooseStartRepo(repo: string): void;
     repoLabel(repo: string): string;
@@ -47,6 +48,7 @@ export function TaskDetails({
     state,
     worktreeFor,
     repos,
+    repoGroups,
     startRepo,
     chooseStartRepo,
     repoLabel,
@@ -96,6 +98,7 @@ export function TaskDetails({
                         busy={busy}
                         worktree={worktreeFor(detail)}
                         repos={repos}
+                        repoGroups={repoGroups}
                         startRepo={startRepo}
                         chooseStartRepo={chooseStartRepo}
                         repoLabel={repoLabel}

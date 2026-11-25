@@ -23,6 +23,18 @@ describe('promptText', () => {
 });
 
 describe('addTranscriptLines', () => {
+    it('shows a prompt that the user sent while the agent worked', () => {
+        const queued = line({
+            type: 'attachment',
+            uuid: 'q1',
+            attachment: { type: 'queued_command', prompt: 'And another', commandMode: 'prompt', origin: { kind: 'human' } }
+        });
+        const other = line({ type: 'attachment', uuid: 'q2', attachment: { type: 'edited_text_file', filename: 'a.ts' } });
+        const sidechain = line({ type: 'attachment', uuid: 'q3', isSidechain: true, attachment: { type: 'queued_command', prompt: 'Hidden' } });
+        const items = addTranscriptLines([], [queued, other, sidechain]);
+        expect(items).toEqual([{ kind: 'user', id: 'q1', text: 'And another', at: Date.parse('2026-11-12T10:00:00.000Z') }]);
+    });
+
     it('makes user, agent, and tool items, and sets the tool result', () => {
         const items = addTranscriptLines(
             [],

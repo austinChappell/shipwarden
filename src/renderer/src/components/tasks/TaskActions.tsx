@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { GitBranch, GitCompareArrows, Link2, ListPlus, Play, Unlink } from 'lucide-react';
 import type { Task, TaskSource } from '@shared/tasks';
 import { AutomationButtons } from '../../automations/AutomationButtons';
-import { Button, Select } from '../ui';
-import { targetRepo as pickTargetRepo } from './task-view-logic';
+import { Button, Combobox } from '../ui';
+import { targetRepo as pickTargetRepo, type RepoGroup } from './task-view-logic';
 import { CompareAgentsDialog } from '../compare/CompareAgentsDialog';
 import { RelatedLinks } from '../RelatedLinks';
 import type { CompareProps } from '../compare/CompareRuns';
@@ -16,8 +16,10 @@ interface Props {
     busy: boolean;
     /** The worktree of the task, if a worktree works on it. */
     worktree: string | undefined;
-    /** The repositories of the project. "Start in worktree" makes the worktree in one of them. */
+    /** The repositories of the active project. "Start in worktree" uses the first one when the user chose none. */
     repos: string[];
+    /** The repositories of all projects, in the order of the sidebar. "Start in worktree" makes the worktree in one of them. */
+    repoGroups: RepoGroup[];
     /** The repository that "Start in worktree" used last in this project. */
     startRepo: string;
     chooseStartRepo(repo: string): void;
@@ -45,6 +47,7 @@ export function TaskActions({
     busy,
     worktree,
     repos,
+    repoGroups,
     startRepo,
     chooseStartRepo,
     repoLabel,
@@ -59,8 +62,8 @@ export function TaskActions({
     const [comparing, setComparing] = useState(false);
     const { state: queue } = useTaskQueue();
     const queued = openItemOfTask(queue, source.connectionId, task.id);
-    /** The repository for "Start in worktree": the last one in this project, else the first. */
-    const targetRepo = pickTargetRepo(repos, startRepo);
+    const targetRepo = pickTargetRepo(repoGroups, repos, startRepo);
+    const repoCount = repoGroups.reduce((count, group) => count + group.repos.length, 0);
     return (
         <div className="task-start">
             {worktree ? (
@@ -114,11 +117,16 @@ export function TaskActions({
                             Compare agents
                         </Button>
                     )}
-                    {repos.length > 1 && (
-                        <Select
+                    {repoCount > 1 && (
+                        <Combobox
                             value={targetRepo}
                             title="The repository of the new worktree"
-                            options={repos.map(repo => ({ value: repo, label: repoLabel(repo) }))}
+                            aria-label="Repository of the new worktree"
+                            placeholder="Repository"
+                            searchPlaceholder="Search repositories"
+                            groups={repoGroups
+                                .filter(group => group.repos.length > 0)
+                                .map(group => ({ label: group.name, items: group.repos.map(repo => ({ value: repo, label: repoLabel(repo) })) }))}
                             onChange={chooseStartRepo}
                         />
                     )}

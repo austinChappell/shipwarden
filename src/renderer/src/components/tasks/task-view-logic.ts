@@ -163,9 +163,21 @@ export function taskLabel(task: Pick<Task, 'key' | 'title'>): string {
     return task.key ? `${task.key} ${task.title}` : task.title;
 }
 
-/** The repository for "Start in worktree": the last one in this project, else the first. */
-export function targetRepo(repos: readonly string[], last: string): string | undefined {
-    return repos.includes(last) ? last : repos[0];
+/** The repositories of one project, for the repository menu of "Start in worktree". */
+export interface RepoGroup {
+    /** The name of the project. */
+    name: string;
+    repos: string[];
+}
+
+/**
+ * The repository for "Start in worktree": the last one, if a project still has it. Else the first repository of the
+ * active project, else the first repository of all projects.
+ */
+export function targetRepo(groups: readonly RepoGroup[], projectRepos: readonly string[], last: string): string | undefined {
+    const all = groups.flatMap(group => group.repos);
+    if (all.includes(last)) return last;
+    return projectRepos[0] ?? all[0];
 }
 
 /** The text that tells which settings a task manager needs. */

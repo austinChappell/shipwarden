@@ -16,6 +16,7 @@ import {
     normalizePlan,
     parseProposal,
     planCounts,
+    planGroups,
     planProblems,
     planReview,
     pullRequestBaseOf,
@@ -613,5 +614,22 @@ describe('stacked steps', () => {
         expect(saved?.steps[1].restack).toBeUndefined();
         expect(normalizePlan({ id: 'a', projectId: 'p' })?.noStack).toBeUndefined();
         expect(duplicatePlan(plan([], { noStack: true }), 1).noStack).toBe(true);
+    });
+});
+
+describe('planGroups', () => {
+    const project = (id: string) => ({ id, name: id.toUpperCase(), repos: [] });
+    const plan = (id: string, projectId: string) => ({ ...newPlan(projectId, 1), id });
+
+    it('puts the active project first and keeps the order of the other projects', () => {
+        const plans = [plan('p1', 'a'), plan('p2', 'c'), plan('p3', 'b'), plan('p4', 'c')];
+        const groups = planGroups(plans, [project('a'), project('b'), project('c')], 'b');
+        expect(groups.map(group => group.project.id)).toEqual(['b', 'a', 'c']);
+        expect(groups[2].plans.map(item => item.id)).toEqual(['p2', 'p4']);
+    });
+
+    it('leaves out projects without plans and plans of removed projects', () => {
+        const groups = planGroups([plan('p1', 'a'), plan('p2', 'gone')], [project('a'), project('b')], 'b');
+        expect(groups.map(group => group.project.id)).toEqual(['a']);
     });
 });

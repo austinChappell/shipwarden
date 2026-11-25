@@ -850,6 +850,35 @@ button {
 }
 
 /* The previews of the pasted images, at the top of the prompt field. */
+/* The queued prompts: a stack at the top of the prompt box. The queue sends them when the agent ends its turn. */
+.chat-queue {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    margin: 0;
+    padding: 0 0 6px;
+    border-bottom: 1px solid var(--border);
+    list-style: none;
+}
+
+.chat-queued {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 28px;
+}
+
+.chat-queued-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
 .chat-attachments {
     display: flex;
     flex-wrap: wrap;
@@ -14025,6 +14054,26 @@ button.pr-summary-cell:hover {
 
 .plan-row:hover {
     background: var(--raised);
+}
+
+/* The plans of one project. The heading has the style of the project groups in the Agents view. */
+.plans-group + .plans-group {
+    margin-top: 26px;
+}
+
+.plans-group h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+    color: var(--text-strong);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.plans-group-count {
+    color: var(--muted);
+    font-weight: 400;
 }
 
 /* One plan. The page has two columns: the idea and the steps at the left, the run panel at the right. */

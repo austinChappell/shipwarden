@@ -428,6 +428,11 @@ export function useWorktreeActions(options: Options) {
             await refreshWorktrees(repoPath);
             // In the background, the user works on something else. Do not move the user to the new worktree.
             if (!inBackground()) {
+                // A task can start in a repository of another project. Show the project of the repository.
+                if (!options.repos.includes(repoPath)) {
+                    const owner = options.projects?.projects.find(project => project.repos.includes(repoPath));
+                    if (owner && owner.id !== options.activeProjectId) await options.switchProject(owner.id);
+                }
                 setSelectedPath(worktree.path);
                 // The dialog can open from the Review view or the commit graph. The new worktree shows in all cases.
                 setMainView('worktree');
