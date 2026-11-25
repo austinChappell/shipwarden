@@ -34,6 +34,17 @@ export function wrapTarget<T>(items: T[], current: T | null, backward: boolean):
     return undefined;
 }
 
+/**
+ * Returns true when the focus must go back to the element that had it before the dialog opened.
+ * The focus goes back when it is on no element, on the body, or in the dialog.
+ * When an element out of the dialog took the focus while the dialog was open, that element keeps it.
+ * For example, the agent of a new worktree takes the focus before the New worktree dialog closes.
+ */
+export function restoreFocus(active: Element | null, body: Element | null, dialog: Element | null): boolean {
+    if (active === null || active === body) return true;
+    return !!dialog?.contains(active);
+}
+
 /** Keeps the focus of the Tab key in the container. Call it from the keydown handler of the container. */
 export function trapTab(event: KeyboardEvent | React.KeyboardEvent, container: HTMLElement): void {
     if (event.key !== 'Tab' || event.defaultPrevented) return;
@@ -49,7 +60,8 @@ export function trapTab(event: KeyboardEvent | React.KeyboardEvent, container: H
  * Makes the dialog in `ref` modal while the component shows:
  * - The Tab key stays in the dialog.
  * - The workspace shortcuts do nothing.
- * - When the dialog closes, the focus goes back to the element that had it before.
+ * - When the dialog closes, the focus goes back to the element that had it before. An element out of the dialog that
+ *   took the focus while the dialog was open keeps it.
  */
 export function useModal(ref: RefObject<HTMLElement | null>): void {
     // The render reads the focus. An effect is too late, because `autoFocus` in the dialog moves the focus first.
@@ -69,6 +81,7 @@ export function useModal(ref: RefObject<HTMLElement | null>): void {
             element?.removeEventListener('keydown', onKey);
             // The development mode of React runs the effect two times. The dialog then stays in the page, and keeps the focus.
             if (element?.isConnected) return;
+            if (!restoreFocus(document.activeElement, document.body, element)) return;
             // The focus goes back, for example to the button that opened the dialog.
             if (before instanceof HTMLElement && document.contains(before)) before.focus();
         };
