@@ -83,7 +83,9 @@ terminal shows the same state. ShipWarden never pushes after a rebase without a 
 A plan stacks its steps by default. Each step in a repository starts from the branch of the step before it, and its
 pull request targets that branch. When a lower pull request merges, ShipWarden runs `git rebase --onto` on the next
 branch and changes the base of its pull request. This also works after a squash merge. A conflict goes to the agent of
-the worktree. See [Plans](docs/plans.md#stacked-pull-requests).
+the worktree. See [Plans](docs/plans.md#stacked-pull-requests). The PR group of the plan has **Rebase stack** and
+**Merge stack**. They rebase and push each branch onto its parent, or merge the ready pull requests from the bottom up.
+Both stop at the first problem. See [Stack actions](docs/pr-groups.md#stack-actions).
 
 The Tasks view shows the tasks of a task tracker. Task trackers are plugins. ShipWarden
 includes seven: GitHub Issues, Linear, ClickUp, Jira, Azure Boards, Trello, and Local tasks. Anyone can write a

@@ -37,7 +37,7 @@ function targetOf(step: PlanStep): RepoTarget {
 }
 
 /** Loads the full pull request of a step again. A review or a check can change at any time. */
-async function loadPullRequest(step: PlanStep): Promise<PullRequest> {
+export async function loadPullRequest(step: PlanStep): Promise<PullRequest> {
     if (!step.pr) throw new Error('The step has no pull request.');
     const link = parsePullRequestLink(step.pr.url);
     if (link) return queryClient.fetchQuery({ ...pullRequestQuery(link.repo, link.number), staleTime: 0 });
