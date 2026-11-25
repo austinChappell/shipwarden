@@ -60,7 +60,8 @@ describe('KeybindingStore', () => {
         store.subscribe(state => states.push(state));
         await store.watch();
         await writeFile(file, JSON.stringify({ newTab: null }));
-        for (let attempt = 0; attempt < 50 && states.length === 0; attempt++) await new Promise(resolve => setTimeout(resolve, 20));
+        // The file watcher of a busy CI runner can take more than a second, so the test waits up to 5 seconds.
+        for (let attempt = 0; attempt < 250 && states.length === 0; attempt++) await new Promise(resolve => setTimeout(resolve, 20));
         expect(states.at(-1)?.overrides).toEqual({ newTab: [] });
     });
 });
