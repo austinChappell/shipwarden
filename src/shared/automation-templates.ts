@@ -30,7 +30,12 @@ function applyFilter(value: string | undefined, filter: string | undefined): str
 
 /** Replaces each "{{name}}" with its value. A variable without a value becomes an empty string. */
 export function renderTemplate(template: string, values: Record<string, string | undefined>): string {
-    return template.replace(VARIABLE_PATTERN, (_match, name: string, filter: string | undefined) => applyFilter(values[name], filter));
+    return replaceVariables(template, (name, filter) => applyFilter(values[name], filter));
+}
+
+/** Replaces each variable of the template with the text that `replace` returns for its name and its filter. */
+export function replaceVariables(template: string, replace: (name: string, filter: string | undefined) => string): string {
+    return template.replace(VARIABLE_PATTERN, (_match, name: string, filter: string | undefined) => replace(name, filter));
 }
 
 /** Returns the names of the variables of a template, one time each. */

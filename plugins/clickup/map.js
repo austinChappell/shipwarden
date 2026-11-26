@@ -332,10 +332,23 @@ export function customFieldRequest(field, value) {
 }
 
 /**
- * Splits the body of a comment into ClickUp comment parts. "@" and the name of a mentioned person becomes a tag.
- * The text of a task reference becomes the URL of the task. The other text stays text.
+ * Converts the body of a comment into ClickUp comment parts. The body is Markdown. "@" and the name of a mentioned
+ * person becomes a tag. The text of a task reference becomes the URL of the task. Code and link text keep these tokens.
  */
 export function commentParts(body, mentions = [], references = []) {
+    return tokenParts(markdownParts(String(body)), mentions, references);
+}
+
+/**
+ * Converts the body of a comment into plain text parts, without Markdown. The plugin sends this text when ClickUp
+ * refuses the formatted parts.
+ */
+export function plainCommentParts(body, mentions = [], references = []) {
+    return tokenParts([{ text: String(body) }], mentions, references);
+}
+
+/** Replaces the mentions and the task references in the text parts. Parts with code or a link stay the same. */
+function tokenParts(source, mentions, references) {
     const tokens = [
         ...mentions.map(person => ({ text: `@${person.name}`, part: { type: 'tag', user: { id: Number(person.id) } } })),
         ...references.map(reference => ({ text: reference.text, part: { text: reference.url ?? taskUrl(reference.id) } }))
@@ -344,29 +357,143 @@ export function commentParts(body, mentions = [], references = []) {
         // A longer token wins over a shorter token that starts at the same place, for example "@Ann Lee" over "@Ann".
         .sort((a, b) => b.text.length - a.text.length);
     const parts = [];
-    const addText = text => {
-        if (!text) return;
-        const last = parts[parts.length - 1];
-        if (last && last.type === undefined) last.text += text;
-        else parts.push({ text });
-    };
-    let rest = String(body);
-    while (rest) {
-        let best;
-        for (const token of tokens) {
-            const index = rest.indexOf(token.text);
-            if (index >= 0 && (best === undefined || index < best.index)) best = { index, token };
+    for (const item of source) {
+        const attributes = item.attributes;
+        if (item.type !== undefined || attributes?.code || attributes?.link || attributes?.['code-block']) {
+            pushPart(parts, item);
+            continue;
         }
-        if (!best) {
-            addText(rest);
-            break;
+        let rest = item.text;
+        while (rest) {
+            let best;
+            for (const token of tokens) {
+                const index = rest.indexOf(token.text);
+                if (index >= 0 && (best === undefined || index < best.index)) best = { index, token };
+            }
+            if (!best) {
+                pushText(parts, rest, attributes);
+                break;
+            }
+            pushText(parts, rest.slice(0, best.index), attributes);
+            if (best.token.part.type) parts.push(best.token.part);
+            else pushText(parts, best.token.part.text, attributes);
+            rest = rest.slice(best.index + best.token.text.length);
         }
-        addText(rest.slice(0, best.index));
-        if (best.token.part.type) parts.push(best.token.part);
-        else addText(best.token.part.text);
-        rest = rest.slice(best.index + best.token.text.length);
     }
     return parts;
+}
+
+/** Adds a text part. Text with the same attributes as the last part joins that part. */
+function pushText(parts, text, attributes) {
+    if (!text) return;
+    pushPart(parts, attributes && Object.keys(attributes).length > 0 ? { text, attributes } : { text });
+}
+
+/** Adds a part. A text part joins the last part when the two parts have the same attributes. */
+function pushPart(parts, part) {
+    const last = parts[parts.length - 1];
+    if (
+        part.type === undefined &&
+        last &&
+        last.type === undefined &&
+        typeof last.text === 'string' &&
+        JSON.stringify(last.attributes ?? {}) === JSON.stringify(part.attributes ?? {})
+    ) {
+        last.text += part.text;
+    } else {
+        parts.push({ ...part });
+    }
+}
+
+/** ClickUp shows headings 1 to 4 only. */
+const MAX_HEADER = 4;
+
+/**
+ * Converts Markdown into ClickUp comment parts. ClickUp uses the Quill format: a text part has inline attributes,
+ * and the "\n" part at the end of a line has the attributes of the line (a heading, a list item, a quote or code).
+ * The function knows headings, lists, task lists, quotes, code blocks, bold, italic, strikethrough, inline code and links.
+ * Other text stays text.
+ */
+export function markdownParts(markdown) {
+    const parts = [];
+    const lines = markdown.replace(/\r\n?/g, '\n').split('\n');
+    let fence;
+    lines.forEach((line, index) => {
+        const last = index === lines.length - 1;
+        const fenceMatch = /^\s*(```|~~~)/.exec(line);
+        if (fence) {
+            if (fenceMatch && fenceMatch[1] === fence) {
+                fence = undefined;
+                return;
+            }
+            pushText(parts, line);
+            pushText(parts, '\n', { 'code-block': { 'code-block': 'plain' } });
+            return;
+        }
+        if (fenceMatch) {
+            fence = fenceMatch[1];
+            return;
+        }
+        const block = blockOf(line);
+        if (block) {
+            inlineParts(block.text, {}, parts);
+            pushText(parts, '\n', block.attributes);
+            return;
+        }
+        inlineParts(line, {}, parts);
+        if (!last) pushText(parts, '\n');
+    });
+    return parts;
+}
+
+/** The attributes and the text of a line that is a heading, a list item or a quote. Undefined for other lines. */
+function blockOf(line) {
+    let match = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+    if (match) return { text: match[2], attributes: { header: Math.min(match[1].length, MAX_HEADER) } };
+    match = /^(\s*)[-*+]\s+\[([ xX])\]\s+(.*)$/.exec(line);
+    if (match) return listItem(match[1], match[2] === ' ' ? 'unchecked' : 'checked', match[3]);
+    match = /^(\s*)[-*+]\s+(.*)$/.exec(line);
+    if (match) return listItem(match[1], 'bullet', match[2]);
+    match = /^(\s*)\d+[.)]\s+(.*)$/.exec(line);
+    if (match) return listItem(match[1], 'ordered', match[2]);
+    match = /^\s*>\s?(.*)$/.exec(line);
+    if (match) return { text: match[1], attributes: { blockquote: {} } };
+    return undefined;
+}
+
+/** A list item. Each 2 spaces before the marker add one level of indent. */
+function listItem(space, list, text) {
+    const indent = Math.floor(space.replace(/\t/g, '  ').length / 2);
+    return { text, attributes: indent > 0 ? { list: { list }, indent } : { list: { list } } };
+}
+
+/**
+ * The inline Markdown. The groups in order: an escaped character, inline code, a link, an autolink, bold, bold,
+ * strikethrough, italic and italic. An "_" inside a word does not start italic text.
+ */
+const INLINE =
+    /\\([\\`*_{}[\]()#+\-.!~>|])|`([^`\n]+)`|\[([^\]\n]+)\]\((?:<([^>\n]+)>|([^)\s]+))\)|<(https?:\/\/[^>\s]+)>|\*\*(?=\S)(.+?)\*\*|__(?=\S)(.+?)__|~~(?=\S)(.+?)~~|\*(?=[^\s*])(.+?)\*|(?<![A-Za-z0-9])_(?=[^\s_])(.+?)_(?![A-Za-z0-9])/g;
+
+/** Adds the parts of one line of inline Markdown. `attributes` are the attributes of the text around the line. */
+function inlineParts(text, attributes, parts) {
+    const pattern = new RegExp(INLINE.source, 'g');
+    let at = 0;
+    for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+        pushText(parts, text.slice(at, match.index), attributes);
+        at = match.index + match[0].length;
+        const [, escaped, code, label, angleUrl, url, autolink, bold, bold2, strike, italic, italic2] = match;
+        if (escaped !== undefined) pushText(parts, escaped, attributes);
+        else if (code !== undefined) pushText(parts, code, { ...attributes, code: true });
+        else if (label !== undefined) {
+            const target = angleUrl ?? url;
+            if (isWebUrl(target)) inlineParts(label, { ...attributes, link: target }, parts);
+            else pushText(parts, match[0], attributes);
+        } else if (autolink !== undefined) pushText(parts, autolink, { ...attributes, link: autolink });
+        else if (bold !== undefined || bold2 !== undefined) inlineParts(bold ?? bold2, { ...attributes, bold: true }, parts);
+        else if (strike !== undefined) inlineParts(strike, { ...attributes, strike: true }, parts);
+        else inlineParts(italic ?? italic2, { ...attributes, italic: true }, parts);
+    }
+    pushText(parts, text.slice(at), attributes);
 }
 
 /** The plain text of comment parts. A tag becomes "@" and the name of the person again. */

@@ -13,6 +13,7 @@ import {
     parseChannelId,
     parseChecklistItemId,
     plainComment,
+    plainCommentParts,
     PRIORITIES,
     rateLimitWait,
     toChannels,
@@ -560,22 +561,23 @@ runPlugin({
     },
 
     /**
-     * Adds a comment. A mention becomes a ClickUp tag, so the person gets a notification. A task reference becomes the
-     * URL of the task, and ClickUp shows it as a link to the task. When ClickUp refuses the parts, the plugin sends the
-     * plain text.
+     * Adds a comment. The body is Markdown, and ClickUp shows its formatting. A mention becomes a ClickUp tag, so the
+     * person gets a notification. A task reference becomes the URL of the task, and ClickUp shows it as a link to the
+     * task. When ClickUp refuses the parts, the plugin sends the plain text.
      */
     async createComment({ taskId, body, mentions = [], references = [] }) {
         let created;
-        if (mentions.length || references.length) {
-            const parts = commentParts(body, mentions, references);
+        const parts = commentParts(body, mentions, references);
+        if (parts.length === 1 && parts[0].type === undefined && !parts[0].attributes) {
+            created = await clickup('POST', `/task/${taskId}/comment`, { comment_text: parts[0].text, notify_all: false });
+        } else {
             try {
                 created = await clickup('POST', `/task/${taskId}/comment`, { comment: parts, notify_all: false });
             } catch (error) {
-                log(`ClickUp did not accept the comment with mentions. The plugin sends the plain text. ${error.message}`);
-                created = await clickup('POST', `/task/${taskId}/comment`, { comment_text: plainComment(parts, mentions), notify_all: false });
+                log(`ClickUp did not accept the formatted comment. The plugin sends the plain text. ${error.message}`);
+                const plain = plainCommentParts(body, mentions, references);
+                created = await clickup('POST', `/task/${taskId}/comment`, { comment_text: plainComment(plain, mentions), notify_all: false });
             }
-        } else {
-            created = await clickup('POST', `/task/${taskId}/comment`, { comment_text: body, notify_all: false });
         }
         return { id: String(created.id), body, createdAt: created.date ? new Date(Number(created.date)).toISOString() : undefined };
     }
