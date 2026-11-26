@@ -906,6 +906,50 @@ export function activeStepIndex(plan: Pick<Plan, 'steps'>): number {
     return plan.steps.findIndex(step => step.status === 'running' || step.status === 'attention' || step.status === 'failed');
 }
 
+/** A pull request that the user links to a step, for example a pull request that the user opened by hand. */
+export interface StepPullRequestLink {
+    pr: StepPullRequest;
+    /** The head branch of the pull request. */
+    branch: string;
+    /** The root folder of the main worktree of the repository of the pull request. */
+    repo: string;
+    /** The worktree of the head branch, when the repository has one. */
+    worktreePath?: string;
+}
+
+/**
+ * Returns the step with a pull request that the user linked. The step becomes done. The page then shows the state of
+ * the pull request: in review, merged, or closed. The step keeps its worktree only when the worktree is for the head
+ * branch. The rebase state of the old branch goes away.
+ */
+export function withLinkedPullRequest(step: PlanStep, link: StepPullRequestLink, now: number): PlanStep {
+    const sameBranch = step.repo === link.repo && step.branch === link.branch;
+    const worktreePath = link.worktreePath ?? (sameBranch ? step.worktreePath : undefined);
+    const {
+        restack: _restack,
+        mergedAt: _mergedAt,
+        followUp: _followUp,
+        stackBase: _stackBase,
+        worktreePath: _worktreePath,
+        sessionId: _sessionId,
+        ...rest
+    } = step;
+    const keepSession = worktreePath !== undefined && worktreePath === step.worktreePath && step.sessionId !== undefined;
+    return {
+        ...rest,
+        repo: link.repo,
+        branch: link.branch,
+        pr: link.pr,
+        status: 'done',
+        skip: false,
+        finishedAt: now,
+        detail: `You linked pull request #${link.pr.number}.`,
+        ...(sameBranch && step.stackBase ? { stackBase: step.stackBase } : {}),
+        ...(worktreePath ? { worktreePath } : {}),
+        ...(keepSession ? { sessionId: step.sessionId } : {})
+    };
+}
+
 /**
  * What Resume does with a plan:
  * - "advance": no step is active. The runner starts the next step.

@@ -60,6 +60,19 @@ export async function renamePlanGroup(planId: string, before: string, after: str
     }));
 }
 
+/**
+ * Removes a pull request from the PR group of the plan, for example the old pull request of a step. A note that
+ * ShipWarden wrote gets the new merge order.
+ */
+export async function removeFromPlanGroup(plan: Plan, key: string): Promise<void> {
+    const group = (await loadGroups()).find(item => item.planId === plan.id);
+    if (!group) return;
+    const lower = key.toLowerCase();
+    await updateGroup(group.id, current =>
+        withMergeOrderNote(current, { ...current, pullRequests: current.pullRequests.filter(pr => prKey(pr).toLowerCase() !== lower) }, plan.title)
+    );
+}
+
 /** The PR group of the plan, or undefined. */
 export function usePlanGroup(planId: string): PrGroup | undefined {
     const { groups } = useGroups();
