@@ -57,6 +57,8 @@ import { PullRepoDialog } from './PullRepoDialog';
 import { AddToGroupDialog } from './AddToGroupDialog';
 import { AddToPlanDialog } from './AddToPlanDialog';
 import { RelatedLinks } from './RelatedLinks';
+import { AutomationButtons } from '../automations/AutomationButtons';
+import { useTaskLinks } from '../app/task-links';
 import { isFindShortcut, openLogFind } from './log-find';
 import { findRequest as makeFindRequest, type FindRequest } from './selected-text';
 import { currentKeymap, useKeymap } from '../keyboard/keymap';
@@ -281,6 +283,8 @@ export function ReviewPullRequest({
     const clone = useRepoClone(repo, projects);
     const inProject = clone === undefined ? undefined : clone !== null;
     const branchWorktree = useBranchWorktree(clone, pr?.headRefName);
+    const taskLinks = useTaskLinks();
+    const [automationError, setAutomationError] = useState<string>();
     const [pullOpen, setPullOpen] = useState(false);
     const [groupOpen, setGroupOpen] = useState(false);
     const [planOpen, setPlanOpen] = useState(false);
@@ -602,6 +606,7 @@ export function ReviewPullRequest({
                             />
                         </h2>
                         {titleError && <ErrorBanner onClose={() => setTitleError(undefined)}>{titleError}</ErrorBanner>}
+                        {automationError && <ErrorBanner onClose={() => setAutomationError(undefined)}>{automationError}</ErrorBanner>}
                     </div>
                     <div className="review-pr-actions">
                         <SplitButton
@@ -618,6 +623,15 @@ export function ReviewPullRequest({
                             show={['task', 'plan', 'group']}
                             size="lg"
                         />
+                        {/* A pull request automation runs in the worktree of the head branch. Without that worktree, no button shows. */}
+                        {clone && branchWorktree && (
+                            <AutomationButtons
+                                variant="menu"
+                                size="lg"
+                                target={{ entity: 'pullRequest', repoPath: clone, worktree: branchWorktree, pr, link: taskLinks[branchWorktree.path] }}
+                                onError={setAutomationError}
+                            />
+                        )}
                         <RefreshButton size="lg" refreshing={loading} disabled={loading} onRefresh={onRefresh} />
                     </div>
                 </div>

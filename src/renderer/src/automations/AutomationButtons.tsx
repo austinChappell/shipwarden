@@ -7,7 +7,7 @@ import type { PullRequest } from '@shared/github';
 import type { Task, TaskLink } from '@shared/tasks';
 import type { Worktree } from '@shared/worktrees';
 import { showContextMenu } from '../components/ContextMenu';
-import { Button, IconButton } from '../components/ui';
+import { Button, IconButton, type ControlSize } from '../components/ui';
 import { branchSummariesQuery } from '../github/use-branch-status';
 import { errorText } from '../util';
 import { useAutomationList } from './automation-queries';
@@ -23,6 +23,8 @@ interface Props {
     target: ButtonTarget;
     /** "buttons": one button for each automation. "menu": one icon button that opens a menu, for a header with little space. */
     variant?: 'buttons' | 'menu';
+    /** The size of the icon button of the "menu" variant. */
+    size?: ControlSize;
     /** Shows the error of a run that did not start. Without it, the buttons show the error. */
     onError?(message: string): void;
 }
@@ -35,7 +37,7 @@ const STARTED_MS = 2500;
  * the automation is on (or a dry run), and its repository, its branch pattern and its conditions agree with the entity.
  * A click starts a run. The Automations view shows the run and its result.
  */
-export function AutomationButtons({ target, variant = 'buttons', onError }: Props) {
+export function AutomationButtons({ target, variant = 'buttons', size = 'md', onError }: Props) {
     const { list } = useAutomationList();
     const place = placeOf(target);
     const candidates = manualAutomationsFor(list.automations, target.entity, { repoPath: place?.repo, branch: place?.worktree.branch });
@@ -118,16 +120,18 @@ export function AutomationButtons({ target, variant = 'buttons', onError }: Prop
             .join(' ') || `Run "${automation.name}"`;
 
     if (variant === 'menu') {
+        const iconSize = size === 'lg' ? 16 : 14;
         return (
             <IconButton
+                size={size}
                 label="Run an automation"
                 icon={
                     busy ? (
-                        <LoaderCircle size={14} strokeWidth={1.8} className="spin" />
+                        <LoaderCircle size={iconSize} strokeWidth={1.8} className="spin" />
                     ) : started ? (
-                        <Check size={14} strokeWidth={1.8} />
+                        <Check size={iconSize} strokeWidth={1.8} />
                     ) : (
-                        <Zap size={14} strokeWidth={1.8} />
+                        <Zap size={iconSize} strokeWidth={1.8} />
                     )
                 }
                 onClick={async event => {

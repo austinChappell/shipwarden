@@ -547,6 +547,68 @@ describe('ClickUp comment mentions', () => {
     });
 });
 
+describe('ClickUp comment Markdown', () => {
+    it('makes inline attributes from bold, italic, strikethrough, code and links', () => {
+        expect(clickup.markdownParts('A **bold _both_** and *it* ~~old~~ `x_y` [docs](https://a.test/d) <https://b.test>')).toEqual([
+            { text: 'A ' },
+            { text: 'bold ', attributes: { bold: true } },
+            { text: 'both', attributes: { bold: true, italic: true } },
+            { text: ' and ' },
+            { text: 'it', attributes: { italic: true } },
+            { text: ' ' },
+            { text: 'old', attributes: { strike: true } },
+            { text: ' ' },
+            { text: 'x_y', attributes: { code: true } },
+            { text: ' ' },
+            { text: 'docs', attributes: { link: 'https://a.test/d' } },
+            { text: ' ' },
+            { text: 'https://b.test', attributes: { link: 'https://b.test' } }
+        ]);
+    });
+
+    it('puts the line attributes on the line break', () => {
+        const body = '## Title\n- one\n  - two\n1. first\n- [x] done\n> quote\n```\nconst a = 1;\n```\nend';
+        expect(clickup.markdownParts(body)).toEqual([
+            { text: 'Title' },
+            { text: '\n', attributes: { header: 2 } },
+            { text: 'one' },
+            { text: '\n', attributes: { list: { list: 'bullet' } } },
+            { text: 'two' },
+            { text: '\n', attributes: { list: { list: 'bullet' }, indent: 1 } },
+            { text: 'first' },
+            { text: '\n', attributes: { list: { list: 'ordered' } } },
+            { text: 'done' },
+            { text: '\n', attributes: { list: { list: 'checked' } } },
+            { text: 'quote' },
+            { text: '\n', attributes: { blockquote: {} } },
+            { text: 'const a = 1;' },
+            { text: '\n', attributes: { 'code-block': { 'code-block': 'plain' } } },
+            { text: 'end' }
+        ]);
+    });
+
+    it('keeps snake_case words, escaped characters and links that are not web links as text', () => {
+        expect(clickup.markdownParts('snake_case_name \\*not\\* [x](javascript:alert(1))')).toEqual([
+            { text: 'snake_case_name *not* [x](javascript:alert(1))' }
+        ]);
+    });
+
+    it('makes tags in formatted text, but not in code', () => {
+        const mentions = [{ id: '7', name: 'Ann' }];
+        expect(clickup.commentParts('**Hi @Ann** `@Ann`', mentions, [])).toEqual([
+            { text: 'Hi ', attributes: { bold: true } },
+            { type: 'tag', user: { id: 7 } },
+            { text: ' ' },
+            { text: '@Ann', attributes: { code: true } }
+        ]);
+    });
+
+    it('keeps the Markdown characters in the plain text', () => {
+        const parts = clickup.plainCommentParts('**Hi** ENG-1', [], [{ id: 'abc', text: 'ENG-1' }]);
+        expect(clickup.plainComment(parts, [])).toBe('**Hi** https://app.clickup.com/t/abc');
+    });
+});
+
 describe('ClickUp comment links', () => {
     it('makes Markdown links from the link parts', () => {
         const comment = {

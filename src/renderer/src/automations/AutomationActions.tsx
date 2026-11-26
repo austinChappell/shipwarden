@@ -1,4 +1,4 @@
-import { useId, useRef } from 'react';
+import { useId, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import {
@@ -26,6 +26,7 @@ import { Button, Card, CardBody, Checkbox, Combobox, IconButton, Input, Select, 
 import { errorText } from '../util';
 import { chatChannelsQueryOptions, chatConnectionsQueryOptions } from './chat-queries';
 import { ConditionEditor } from './ConditionEditor';
+import { MessagePreview } from './MessagePreview';
 
 interface ListProps {
     actions: AutomationAction[];
@@ -421,6 +422,7 @@ interface PostMessageProps {
  */
 function PostMessageFields({ action, trigger, onChange }: PostMessageProps) {
     const messageRef = useRef<HTMLTextAreaElement>(null);
+    const [preview, setPreview] = useState(false);
     const connections = useQuery(chatConnectionsQueryOptions());
     const list = connections.data ?? [];
     const connectionId = action.connectionId ?? (list.length === 1 ? list[0].id : undefined);
@@ -487,19 +489,37 @@ function PostMessageFields({ action, trigger, onChange }: PostMessageProps) {
                 <div className="automation-warning">No task manager has chat channels. Add a ClickUp connection in Settings › Task managers.</div>
             )}
             <div className="automation-prompt-box">
-                <div className="automation-prompt-head">Message</div>
-                <textarea
-                    ref={messageRef}
-                    className="automation-prompt"
-                    aria-label="Message"
-                    value={action.message}
-                    spellCheck={false}
-                    placeholder="The message, in Markdown. Click a variable below to insert it."
-                    onChange={event => onChange({ ...action, message: event.target.value })}
-                />
+                <div className="automation-prompt-head with-tabs">
+                    <span>Message</span>
+                    <div className="markdown-editor-tabs" role="tablist" aria-label="Message view">
+                        <button type="button" role="tab" aria-selected={!preview} className={preview ? '' : 'on'} onClick={() => setPreview(false)}>
+                            Write
+                        </button>
+                        <button type="button" role="tab" aria-selected={preview} className={preview ? 'on' : ''} onClick={() => setPreview(true)}>
+                            Preview
+                        </button>
+                    </div>
+                </div>
+                {preview ? (
+                    <MessagePreview message={action.message} />
+                ) : (
+                    <textarea
+                        ref={messageRef}
+                        className="automation-prompt"
+                        aria-label="Message"
+                        value={action.message}
+                        spellCheck={false}
+                        placeholder="The message, in Markdown. Click a variable below to insert it."
+                        onChange={event => onChange({ ...action, message: event.target.value })}
+                    />
+                )}
                 <VariableHint
                     trigger={trigger}
-                    onInsert={variable => onChange({ ...action, message: insertAt(messageRef.current, action.message, variable) })}
+                    onInsert={variable => {
+                        // A variable goes into the text, so the text shows again.
+                        setPreview(false);
+                        onChange({ ...action, message: insertAt(messageRef.current, action.message, variable) });
+                    }}
                 />
             </div>
             <TemplateWarnings texts={[action.message]} trigger={trigger} />

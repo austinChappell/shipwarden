@@ -14263,6 +14263,45 @@ button.pr-summary-cell:hover {
     font-weight: 500;
 }
 
+.automation-prompt-head.with-tabs {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-block: 4px;
+}
+
+.automation-prompt-head .markdown-editor-tabs button {
+    padding: 2px 8px;
+    font-size: 12px;
+}
+
+/* The preview has the same minimum height and padding as the text field, so the box does not jump. */
+.message-preview {
+    min-height: 110px;
+    max-height: 320px;
+    overflow: auto;
+    padding: 10px 12px;
+}
+
+.message-preview.empty {
+    color: var(--muted);
+}
+
+.message-preview-link {
+    color: var(--info);
+    cursor: help;
+}
+
+.message-preview-variable {
+    padding: 0 5px;
+    border-radius: 4px;
+    background: var(--raised);
+    color: var(--text-strong);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.85em;
+}
+
 .automation-prompt {
     display: block;
     width: 100%;
