@@ -33,6 +33,7 @@ import {
     stepPrompt,
     stepStatusLabel,
     worktreeBaseOf,
+    withLinkedPullRequest,
     type Plan,
     type PlanStep
 } from './plans';
@@ -631,5 +632,45 @@ describe('planGroups', () => {
     it('leaves out projects without plans and plans of removed projects', () => {
         const groups = planGroups([plan('p1', 'a'), plan('p2', 'gone')], [project('a'), project('b')], 'b');
         expect(groups.map(group => group.project.id)).toEqual(['a']);
+    });
+});
+
+describe('withLinkedPullRequest', () => {
+    const pr = { number: 42, url: 'https://github.com/acme/api/pull/42', base: 'main' };
+
+    it('makes a failed step done with the pull request', () => {
+        const failed = step({ repo: API, status: 'failed', branch: 'plan/x/1-a', worktreePath: '/wt/a', sessionId: 's1', detail: 'The push failed.' });
+        const linked = withLinkedPullRequest(failed, { pr, branch: 'fix/by-hand', repo: API, worktreePath: '/wt/b' }, 5000);
+        expect(linked).toMatchObject({ status: 'done', skip: false, pr, branch: 'fix/by-hand', worktreePath: '/wt/b', finishedAt: 5000 });
+        expect(linked.detail).toBe('You linked pull request #42.');
+        expect(linked.sessionId).toBeUndefined();
+    });
+
+    it('keeps the worktree and the agent of the same branch', () => {
+        const failed = step({ repo: API, status: 'failed', branch: 'plan/x/1-a', worktreePath: '/wt/a', sessionId: 's1', stackBase: 'abc1234' });
+        const linked = withLinkedPullRequest(failed, { pr, branch: 'plan/x/1-a', repo: API }, 5000);
+        expect(linked).toMatchObject({ worktreePath: '/wt/a', sessionId: 's1', stackBase: 'abc1234' });
+    });
+
+    it('drops the worktree of a different branch and the rebase state', () => {
+        const done = step({
+            repo: API,
+            status: 'done',
+            branch: 'plan/x/1-a',
+            worktreePath: '/wt/a',
+            stackBase: 'abc1234',
+            restack: { onto: 'main', state: 'failed', merged: 7 },
+            mergedAt: 1
+        });
+        const linked = withLinkedPullRequest(done, { pr, branch: 'other', repo: API }, 5000);
+        expect(linked.worktreePath).toBeUndefined();
+        expect(linked.stackBase).toBeUndefined();
+        expect(linked.restack).toBeUndefined();
+        expect(linked.mergedAt).toBeUndefined();
+    });
+
+    it('makes a skipped step done', () => {
+        const skipped = step({ repo: API, status: 'skipped', skip: true });
+        expect(withLinkedPullRequest(skipped, { pr, branch: 'b', repo: API }, 5000)).toMatchObject({ status: 'done', skip: false });
     });
 });

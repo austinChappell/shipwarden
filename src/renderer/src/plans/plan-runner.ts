@@ -23,8 +23,10 @@ import {
     stepPrompt,
     worktreeBaseOf,
     watchesCi,
+    withLinkedPullRequest,
     type Plan,
     type PlanStep,
+    type StepPullRequestLink,
     type StepRestack
 } from '@shared/plans';
 import { restackConflictPrompt } from '@shared/rebase-conflict';
@@ -206,6 +208,18 @@ export class PlanRunner {
     /** Marks a step as done without a check, and starts the next step. The step gets no pull request. */
     async markDone(planId: string, stepId: string): Promise<void> {
         await this.patchStep(planId, stepId, { status: 'done', finishedAt: Date.now(), detail: 'You marked the step as done.' });
+        await this.advance(planId);
+    }
+
+    /**
+     * Links a pull request to a step, for example a pull request that the user opened by hand after the step failed.
+     * The step becomes done, and a running plan starts the next step. The caller changes the PR group of the plan.
+     */
+    async linkPullRequest(planId: string, stepId: string, link: StepPullRequestLink): Promise<void> {
+        await updatePlan(planId, plan => ({
+            ...plan,
+            steps: plan.steps.map(step => (step.id === stepId ? withLinkedPullRequest(step, link, Date.now()) : step))
+        }));
         await this.advance(planId);
     }
 

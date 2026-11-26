@@ -20,7 +20,7 @@ import { changePullRequest, mergePullRequest } from '../github/pull-request-muta
 import { pullRequestQuery } from '../github/review-store';
 import { keyRoots, queryClient } from '../query-client';
 import { errorText } from '../util';
-import { renamePlanGroup, syncGroupOrder, syncPlanGroup } from './plan-group';
+import { removeFromPlanGroup, renamePlanGroup, syncGroupOrder, syncPlanGroup } from './plan-group';
 import { cachedPlan, renamePlan, updatePlan } from './plan-queries';
 import { planRunner } from './plan-runner';
 import { moveKeyTo } from '../components/reorder';
@@ -191,6 +191,41 @@ async function projectRepoOf(repo: RepoRef, repos: readonly string[]): Promise<s
     return undefined;
 }
 
+/** True when a step other than `exceptId` has the pull request with the key `key` (see `prKey`). */
+function hasPullRequest(steps: readonly PlanStep[], key: string, exceptId?: string): boolean {
+    return steps.some(step => {
+        const other = step.id !== exceptId && step.pr ? parsePullRequestLink(step.pr.url) : undefined;
+        return !!other && prKey(other).toLowerCase() === key.toLowerCase();
+    });
+}
+
+/**
+ * Loads a pull request from a link that the user pasted, for a step of a plan. Returns the pull request, the repository
+ * folder of the project, and the worktree of the head branch if the repository has one. Throws an error with a message.
+ */
+async function loadLinkedPullRequest(plan: Plan, link: string, repos: readonly string[], stepId?: string) {
+    const parsed = parsePullRequestLink(link);
+    if (!parsed) throw new Error('Paste the link of a GitHub or Azure Repos pull request, or write owner/name#number.');
+    const key = prKey(parsed);
+    if (hasPullRequest(plan.steps, key, stepId)) throw new Error('The pull request is in the plan already.');
+    const repo = await projectRepoOf(parsed.repo, repos);
+    if (!repo) throw new Error(`The project has no clone of ${repoRefLabel(parsed.repo)}. Add the repository to the project first.`);
+    const pr = await queryClient.fetchQuery(pullRequestQuery(parsed.repo, parsed.number));
+    const worktree = (await api.worktrees.list(repo).catch(() => [])).find(item => item.branch === pr.headRefName);
+    return { key, pr, repo, worktreePath: worktree?.path };
+}
+
+/** Puts the pull requests of a plan into the PR group of the plan. A problem with the group does not undo the change of the plan. */
+async function syncGroupAfterChange(plan: Plan | undefined, removedKey?: string): Promise<void> {
+    if (!plan || plan.noPrGroup) return;
+    try {
+        if (removedKey) await removeFromPlanGroup(plan, removedKey);
+        await syncPlanGroup(plan);
+    } catch (error) {
+        console.warn(`[plans] The PR group of "${plan.title}" did not change: ${errorText(error)}`);
+    }
+}
+
 /**
  * Adds a pull request to a plan that ran. The pull request becomes a new done step at the end of the plan. The pull
  * request must be in a repository of the project. When the repository has a worktree of the head branch, the step
@@ -198,22 +233,10 @@ async function projectRepoOf(repo: RepoRef, repos: readonly string[]): Promise<s
  * Throws an error with a message.
  */
 export async function addPullRequestStep(planId: string, link: string, repos: readonly string[]): Promise<void> {
-    const parsed = parsePullRequestLink(link);
-    if (!parsed) throw new Error('Paste the link of a GitHub or Azure Repos pull request, or write owner/name#number.');
     const plan = cachedPlan(planId);
     if (!plan) throw new Error('The plan does not exist anymore.');
-    const key = prKey(parsed);
-    const inPlan = (steps: readonly PlanStep[]) =>
-        steps.some(step => {
-            const other = step.pr ? parsePullRequestLink(step.pr.url) : undefined;
-            return !!other && prKey(other).toLowerCase() === key.toLowerCase();
-        });
-    if (inPlan(plan.steps)) throw new Error('The pull request is in the plan already.');
     if (plan.steps.length >= MAX_GROUP_PULL_REQUESTS) throw new Error(`A plan can have at most ${MAX_GROUP_PULL_REQUESTS} steps.`);
-    const repo = await projectRepoOf(parsed.repo, repos);
-    if (!repo) throw new Error(`The project has no clone of ${repoRefLabel(parsed.repo)}. Add the repository to the project first.`);
-    const pr = await queryClient.fetchQuery(pullRequestQuery(parsed.repo, parsed.number));
-    const worktree = (await api.worktrees.list(repo).catch(() => [])).find(item => item.branch === pr.headRefName);
+    const { key, pr, repo, worktreePath } = await loadLinkedPullRequest(plan, link, repos);
     const step: PlanStep = {
         ...newStep(repo),
         title: pr.title.slice(0, MAX_TITLE_LENGTH),
@@ -222,16 +245,35 @@ export async function addPullRequestStep(planId: string, link: string, repos: re
         branch: pr.headRefName,
         pr: { number: pr.number, url: pr.url, base: pr.baseRefName },
         finishedAt: Date.now(),
-        ...(worktree ? { worktreePath: worktree.path } : {})
+        ...(worktreePath ? { worktreePath } : {})
     };
     const updated = await updatePlan(planId, current => {
-        if (inPlan(current.steps)) throw new Error('The pull request is in the plan already.');
+        if (hasPullRequest(current.steps, key)) throw new Error('The pull request is in the plan already.');
         return { ...current, steps: [...current.steps, step] };
     });
-    // A problem with the group does not undo the new step.
-    if (updated && !updated.noPrGroup) {
-        await syncPlanGroup(updated).catch(error => console.warn(`[plans] The PR group of "${updated.title}" did not change: ${errorText(error)}`));
-    }
+    await syncGroupAfterChange(updated);
+}
+
+/**
+ * Links a pull request to a step of a plan, for example a pull request that the user opened by hand after the step
+ * failed. The step becomes done, and the page shows the state of the pull request. The pull request must be in a
+ * repository of the project. The PR group of the plan gets the pull request, and loses the old pull request of the
+ * step. Throws an error with a message.
+ */
+export async function linkStepPullRequest(planId: string, stepId: string, link: string, repos: readonly string[]): Promise<void> {
+    const plan = cachedPlan(planId);
+    const step = plan?.steps.find(item => item.id === stepId);
+    if (!plan || !step) throw new Error('The step does not exist anymore.');
+    const { key, pr, repo, worktreePath } = await loadLinkedPullRequest(plan, link, repos, stepId);
+    const old = step.pr ? parsePullRequestLink(step.pr.url) : undefined;
+    const oldKey = old && prKey(old).toLowerCase() !== key.toLowerCase() ? prKey(old) : undefined;
+    await planRunner.linkPullRequest(planId, stepId, {
+        pr: { number: pr.number, url: pr.url, base: pr.baseRefName },
+        branch: pr.headRefName,
+        repo,
+        ...(worktreePath ? { worktreePath } : {})
+    });
+    await syncGroupAfterChange(cachedPlan(planId), oldKey);
 }
 
 /**

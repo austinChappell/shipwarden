@@ -86,7 +86,7 @@ import {
     sortedGroups,
     type ChipTone
 } from '../components/ui';
-import { alertDialog, confirmDialog } from '../components/ConfirmDialog';
+import { alertDialog, confirmDialog, promptDialog } from '../components/ConfirmDialog';
 import { showContextMenu } from '../components/ContextMenu';
 import { radioGroupKeys } from '../components/keyboard';
 import { Markdown } from '../components/Markdown';
@@ -108,6 +108,7 @@ import { planPullRequests, syncPlanGroup, usePlanGroup } from './plan-group';
 import {
     addPullRequestStep,
     canPromptStep,
+    linkStepPullRequest,
     loadStepForMerge,
     mergeStep,
     stepMergeConfirm,
@@ -2004,7 +2005,7 @@ function PlanRun({ plan, project, repoLabel, repoColor, onOpenWorktree, onClosed
         });
     // The plan runner keeps the index of the step that runs. Thus the order changes only when no step runs.
     const canReorder = plan.status !== 'running' && !plan.steps.some(step => step.status === 'running');
-    const rowProps = { plan, progress, repoLabel, onOpenWorktree, act, onMerge: merge };
+    const rowProps = { plan, progress, repos: project.repos, repoLabel, onOpenWorktree, act, onMerge: merge };
 
     return (
         <div className="flow-page plan-page plan-run-page">
@@ -2142,6 +2143,8 @@ function NextToMerge({
 interface RowProps {
     plan: Plan;
     progress: StepProgress[];
+    /** The repository folders of the project. A linked pull request must be in one of them. */
+    repos: readonly string[];
     repoLabel(repo: string): string;
     onOpenWorktree(path: string, sessionId?: string): void;
     act(work: () => Promise<unknown>): Promise<void>;
@@ -2268,6 +2271,7 @@ function RunStepRow({
     index,
     plan,
     progress,
+    repos,
     onOpenWorktree,
     act,
     onMerge,
@@ -2286,6 +2290,19 @@ function RunStepRow({
     const isOpen = step.status === 'running' || step.status === 'attention' || step.status === 'failed';
     const finished = plan.status === 'done';
 
+    // A pull request that the user opened by hand, for example after the step failed. The step becomes done, and the
+    // row shows the state of the pull request.
+    const linkPullRequest = async () => {
+        const link = await promptDialog({
+            title: step.pr ? `Change the pull request of "${step.title}"?` : `Link a pull request to "${step.title}"?`,
+            message: 'The step becomes done and shows the state of the pull request. The PR group of the plan gets the pull request too.',
+            value: step.pr?.url ?? '',
+            placeholder: 'Paste a pull request link, or owner/name#12',
+            confirmLabel: 'Link'
+        });
+        if (link) void act(() => linkStepPullRequest(plan.id, step.id, link, repos));
+    };
+
     const menu = async (anchor: Element) => {
         const choice = await showContextMenu(
             [
@@ -2294,6 +2311,7 @@ function RunStepRow({
                 ...(link ? [{ id: 'task', label: `Open the task${link.key ? ` ${link.key}` : ''}` }] : []),
                 ...(!finished && step.status === 'attention' && step.worktreePath ? [{ id: 'resend', label: 'Send the prompt again' }] : []),
                 ...(!finished && step.status === 'running' ? [{ id: 'check', label: 'Check for a commit now' }] : []),
+                ...(step.status !== 'running' ? [{ id: 'link', label: step.pr ? 'Change the pull request…' : 'Link a pull request…' }] : []),
                 ...(!finished && isOpen ? [{ id: 'done', label: 'Mark as done' }] : []),
                 ...(!finished && (isOpen || step.status === 'pending') ? [{ id: 'skip', label: 'Skip the step' }] : [])
             ],
@@ -2304,6 +2322,7 @@ function RunStepRow({
         if (choice === 'task' && link) nav?.openTask(link);
         if (choice === 'resend') void act(() => planRunner.resendPrompt(plan.id, step.id));
         if (choice === 'check') void act(() => planRunner.continueStep(plan.id, step.id));
+        if (choice === 'link') void linkPullRequest();
         if (choice === 'done') void act(() => planRunner.markDone(plan.id, step.id));
         if (choice === 'skip') void act(() => planRunner.skipStep(plan.id, step.id));
     };
