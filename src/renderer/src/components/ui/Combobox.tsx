@@ -51,6 +51,10 @@ interface Props {
     'aria-label'?: string;
     /** Called when the popover opens. Use it to load the items only when the user needs them. */
     onOpen?(): void;
+    /** Called when the popover closes, also before `onChange` of a chosen item. */
+    onClose?(): void;
+    /** A change of this number opens the popover. Use it to ask for a choice from another control. 0 does nothing. */
+    openRequest?: number;
 }
 
 /** A select with a search field, for long lists in groups. With `values`, it is a multi-select. */
@@ -66,7 +70,9 @@ export function Combobox({
     className,
     size,
     'aria-label': ariaLabel,
-    onOpen
+    onOpen,
+    onClose,
+    openRequest = 0
 }: Props) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
@@ -139,7 +145,14 @@ export function Combobox({
     const hide = (focus = true) => {
         setOpen(false);
         if (focus) trigger.current?.focus();
+        onClose?.();
     };
+
+    // Open the popover when the caller asks for it.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect must run only when the request number changes.
+    useEffect(() => {
+        if (openRequest > 0 && !disabled) show();
+    }, [openRequest]);
 
     const choose = (item: ComboboxItem) => {
         if (multiple) {
