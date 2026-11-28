@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Bot, Check, ChevronRight, FileDiff, LoaderCircle, Send } from 'lucide-react';
 import { lineLabel } from '@shared/ask-agent';
 import { noteTargetOptions, type NoteTarget, type NoteTargetOption } from '@shared/code-note';
@@ -309,6 +309,23 @@ export function ComposerZone({
     const [category, setCategory] = useState<CommentCategory>();
     const [mode, setMode] = useState<ComposerMode>(initialMode ?? modes[0] ?? 'ask');
     const textRef = useRef<HTMLTextAreaElement>(null);
+    // The diff can show the box a few frames after React adds it. For example, the file stream shows the box only after
+    // it makes the slot for the box. A box that does not show cannot get the focus, so `autoFocus` is not sufficient.
+    // Try again at each frame for at most 1 second. Do not take the focus if the user moved it to a different element.
+    useEffect(() => {
+        const start = document.activeElement;
+        let frame = 0;
+        let tries = 0;
+        const focus = () => {
+            const box = textRef.current;
+            if (!box || document.activeElement === box) return;
+            if (document.activeElement !== start) return;
+            if (box.getClientRects().length > 0) box.focus();
+            else if (++tries < 60) frame = requestAnimationFrame(focus);
+        };
+        focus();
+        return () => cancelAnimationFrame(frame);
+    }, []);
     /** The text of the lines when the user started a suggested change. */
     const [originalCode, setOriginalCode] = useState<string>();
     const [suggestError, setSuggestError] = useState<string>();
