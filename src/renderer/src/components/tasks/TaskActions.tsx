@@ -62,6 +62,32 @@ export function TaskActions({
     const targetRepo = pickTargetRepo(repoGroups, chosenRepo);
     const repoCount = repoGroups.reduce((count, group) => count + group.repos.length, 0);
     const noRepoText = repoCount === 0 ? 'Add a repository to the project first' : 'Select a repository first';
+    // Without a repository, a click on a start button opens the repository menu. The choice then runs the button.
+    const [pending, setPending] = useState<PendingAction>();
+    const [askRepo, setAskRepo] = useState(0);
+    /** Runs an action in a repository. */
+    const run = (action: PendingAction, repo: string) => {
+        if (action === 'start') act(() => onStartTask(task, source.connectionId, source.pluginId, repo));
+        else if (action === 'queue')
+            act(() => queueTask({ connectionId: source.connectionId, pluginId: source.pluginId, task, repoPath: repo }).then(() => undefined));
+        else setComparing(true);
+    };
+    /** Runs the action in the target repository. Without one, asks for the repository first. */
+    const request = (action: PendingAction) => {
+        if (targetRepo) {
+            run(action, targetRepo);
+            return;
+        }
+        setPending(action);
+        setAskRepo(count => count + 1);
+    };
+    const chooseRepo = (repo: string) => {
+        setChosenRepo(repo);
+        // The menu calls onClose before onChange, but this render still holds the pending action.
+        if (pending) run(pending, repo);
+    };
+    /** The tooltip of a start button when no repository is selected. */
+    const chooseText = repoCount === 0 ? noRepoText : 'Select a repository for the new worktree';
     return (
         <div className="task-start">
             {worktree ? (
@@ -83,37 +109,31 @@ export function TaskActions({
                     <Button
                         variant="primary"
                         icon={<Play size={14} strokeWidth={1.8} />}
-                        disabled={busy || !targetRepo || !source}
-                        title={targetRepo ? `Make a worktree in ${repoLabel(targetRepo)} and start an agent on the task` : noRepoText}
-                        onClick={() => source && targetRepo && act(() => onStartTask(task, source.connectionId, source.pluginId, targetRepo))}
+                        disabled={busy || repoCount === 0}
+                        title={targetRepo ? `Make a worktree in ${repoLabel(targetRepo)} and start an agent on the task` : chooseText}
+                        onClick={() => request('start')}
                     >
                         Start in worktree
                     </Button>
                     <Button
                         icon={<ListPlus size={14} strokeWidth={1.8} />}
-                        disabled={busy || !targetRepo || !source || !!queued}
+                        disabled={busy || repoCount === 0 || !!queued}
                         title={queueButtonTitle(
                             queued && queuePosition(queue, queued.id),
                             !!queued,
                             targetRepo ? repoLabel(targetRepo) : undefined,
-                            noRepoText
+                            chooseText
                         )}
-                        onClick={() =>
-                            source &&
-                            targetRepo &&
-                            act(async () => {
-                                await queueTask({ connectionId: source.connectionId, pluginId: source.pluginId, task, repoPath: targetRepo });
-                            })
-                        }
+                        onClick={() => request('queue')}
                     >
                         {queued ? 'In queue' : 'Add to queue'}
                     </Button>
                     {compare && (
                         <Button
                             icon={<GitCompareArrows size={14} strokeWidth={1.8} />}
-                            disabled={busy || !targetRepo || !source}
-                            title={targetRepo ? 'Give the task to 2 to 4 agents, each in its own worktree, and keep the best result' : noRepoText}
-                            onClick={() => setComparing(true)}
+                            disabled={busy || repoCount === 0}
+                            title={targetRepo ? 'Give the task to 2 to 4 agents, each in its own worktree, and keep the best result' : chooseText}
+                            onClick={() => request('compare')}
                         >
                             Compare agents
                         </Button>
@@ -124,11 +144,13 @@ export function TaskActions({
                             title="The repository of the new worktree"
                             aria-label="Repository of the new worktree"
                             placeholder="Select a repository"
-                            searchPlaceholder="Search repositories"
+                            searchPlaceholder={pending ? 'Select the repository for the new worktree' : 'Search repositories'}
                             groups={repoGroups
                                 .filter(group => group.repos.length > 0)
                                 .map(group => ({ label: group.name, items: group.repos.map(repo => ({ value: repo, label: repoLabel(repo) })) }))}
-                            onChange={setChosenRepo}
+                            openRequest={askRepo}
+                            onClose={() => setPending(undefined)}
+                            onChange={chooseRepo}
                         />
                     )}
                     <Button
@@ -172,6 +194,9 @@ export function TaskActions({
         </div>
     );
 }
+
+/** A start button that waits for the user to select a repository. */
+type PendingAction = 'start' | 'queue' | 'compare';
 
 /** The tooltip of "Add to queue". `position` is the place of a queued task, from 1. A task that starts or runs has none. */
 function queueButtonTitle(position: number | undefined, inQueue: boolean, repo: string | undefined, noRepoText: string): string {
