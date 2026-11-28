@@ -8,6 +8,8 @@ import { errorText, optionalErrorText } from '../util';
 import { applyMetaChanges, metaChangeKey, type MetaChange } from './pr-meta-changes';
 import { MentionTextarea } from './MentionTextarea';
 import { DraftButton } from './DraftButton';
+import { hasTextDraft, setTextDraft, useTextDraft } from '../app/text-drafts';
+import { isDraftRunning, stopDraft } from '../app/agent-drafts';
 import { Button, Card, Chip as UiChip, type ChipTone, IconButton, Input, labelIndex } from './ui';
 
 /**
@@ -504,7 +506,32 @@ export function PullRequestMeta({
     );
 }
 
-/** The form that changes the title and the description of a pull request. */
+/** Returns the start of the text draft keys of the description editor of a pull request. */
+function editorKey(pr: PullRequest): string {
+    return `pr-edit:${pr.url}`;
+}
+
+/**
+ * True when the description editor of the pull request has changes that the user did not save, or a ✨ draft that is
+ * running. The editor then opens again when the pull request shows again.
+ */
+export function hasDescriptionDraft(pr: PullRequest): boolean {
+    const key = editorKey(pr);
+    return hasTextDraft(`${key}:title`) || hasTextDraft(`${key}:body`) || isDraftRunning(`${key}:body`);
+}
+
+/** Removes the unsaved changes of the description editor of a pull request, and stops its ✨ draft. */
+export function clearDescriptionDraft(pr: PullRequest): void {
+    const key = editorKey(pr);
+    stopDraft(`${key}:body`);
+    setTextDraft(`${key}:title`, '');
+    setTextDraft(`${key}:body`, '');
+}
+
+/**
+ * The form that changes the title and the description of a pull request. The changes stay when the form closes, so a
+ * ✨ draft that ends later shows when the form opens again.
+ */
 export function DescriptionEditor({
     pr,
     worktree,
@@ -519,8 +546,9 @@ export function DescriptionEditor({
     onSave(title: string, body: string): void;
     onCancel(): void;
 }) {
-    const [title, setTitle] = useState(pr.title);
-    const [body, setBody] = useState(pr.body);
+    const key = editorKey(pr);
+    const [title, setTitle] = useTextDraft(`${key}:title`, pr.title);
+    const [body, setBody] = useTextDraft(`${key}:body`, pr.body);
     const [draftError, setDraftError] = useState<string>();
     const changed = title.trim() !== pr.title || body !== pr.body;
     const save = () => {
@@ -544,7 +572,17 @@ export function DescriptionEditor({
             />
             {draftError && <div className="form-error">{draftError}</div>}
             <div className="row-buttons">
-                {worktree && <DraftButton worktree={worktree} kind="pullRequest" current={body} disabled={busy} onDraft={setBody} onError={setDraftError} />}
+                {worktree && (
+                    <DraftButton
+                        worktree={worktree}
+                        kind="pullRequest"
+                        draftKey={`${key}:body`}
+                        fallback={pr.body}
+                        current={body}
+                        disabled={busy}
+                        onError={setDraftError}
+                    />
+                )}
                 <Button onClick={onCancel}>Cancel</Button>
                 <Button variant="primary" disabled={busy || !title.trim() || !changed} onClick={save}>
                     Save

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { ExternalLink, GitPullRequest } from 'lucide-react';
-import { hostLabel, type BranchStatus, type NewPullRequest, type PullRequestInto, type RepoRef, type RepoTarget } from '@shared/github';
+import { hostLabel, targetKey, type BranchStatus, type NewPullRequest, type PullRequestInto, type RepoRef, type RepoTarget } from '@shared/github';
 import { createPullRequest, setPullRequestInto } from '../github/pull-request-mutations';
 import { optionalErrorText } from '../util';
 import { confirmDialog } from './ConfirmDialog';
@@ -10,6 +10,7 @@ import { MentionTextarea } from './MentionTextarea';
 import { MentionContext, mentionSourceOfRepo } from './mention-context';
 import { Button, Checkbox, Input, RefreshButton, Select } from './ui';
 import { DraftButton } from './DraftButton';
+import { useTextDraft } from '../app/text-drafts';
 import { LocalWorkNotice } from './LocalWorkNotice';
 import type { GitChanges } from '@shared/git';
 
@@ -48,11 +49,20 @@ export function CreatePullRequest({
     /** Shows the Changes tab of the worktree. */
     onShowChanges?(): void;
 }) {
-    const [title, setTitle] = useState(status.branch);
-    const [body, setBody] = useState('');
+    // The title and the description stay when the form closes, so a ✨ draft that ends later shows here.
+    const formKey = `pr-create:${targetKey(target)}:${status.branch}`;
+    const bodyKey = `${formKey}:body`;
+    const [title, setTitle] = useTextDraft(`${formKey}:title`, status.branch);
+    const [body, setBody] = useTextDraft(bodyKey);
     const [draft, setDraft] = useState(false);
     const [draftError, setDraftError] = useState<string>();
-    const mutation = useMutation({ mutationFn: ({ root, ...request }: { root: string } & NewPullRequest) => createPullRequest(root, request) });
+    const mutation = useMutation({
+        mutationFn: ({ root, ...request }: { root: string } & NewPullRequest) => createPullRequest(root, request),
+        onSuccess: () => {
+            setTitle(status.branch);
+            setBody('');
+        }
+    });
     const into = useMutation({ mutationFn: ({ root, value }: { root: string; value: PullRequestInto }) => setPullRequestInto(root, value) });
     const busy = mutation.isPending || into.isPending;
     const error = optionalErrorText(mutation.error) ?? optionalErrorText(into.error);
@@ -125,7 +135,7 @@ export function CreatePullRequest({
                     <div className="pr-create-row">
                         <Checkbox label="Draft" checked={draft} onChange={setDraft} disabled={busy} />
                         <span className="header-spacer" />
-                        <DraftButton worktree={target} kind="pullRequest" current={body} disabled={busy} onDraft={setBody} onError={setDraftError} />
+                        <DraftButton worktree={target} kind="pullRequest" draftKey={bodyKey} current={body} disabled={busy} onError={setDraftError} />
                     </div>
                     {(error ?? draftError) && <div className="form-error">{error ?? draftError}</div>}
                     <div className="row-buttons">

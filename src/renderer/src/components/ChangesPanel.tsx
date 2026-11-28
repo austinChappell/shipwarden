@@ -25,6 +25,7 @@ import { itemKeys, moveListFocus } from '../keyboard/list-nav';
 import { pluralize } from '@shared/format';
 import { Button, Checkbox, Count, IconButton, RefreshButton, SkeletonRows, TextArea } from './ui';
 import { DraftButton } from './DraftButton';
+import { useTextDraft } from '../app/text-drafts';
 import { OverlapNote } from './OverlapChip';
 import { useWorktreeOverlap } from '../git/overlap-query';
 import { afterRebase, confirmForcePush, conflictPromptFor } from '../git/rebase-actions';
@@ -140,8 +141,12 @@ export function ChangesPanel({
     onSendToAgent
 }: Props) {
     const overlap = useWorktreeOverlap(repo, worktree);
-    const [message, setMessage] = useState('');
-    const [amend, setAmend] = useState(false);
+    // The message and the Amend switch stay when the panel closes, so a ✨ draft that ends later shows here.
+    const messageKey = `commit-message:${worktree}`;
+    const [message, setMessage] = useTextDraft(messageKey);
+    const [amendDraft, setAmendDraft] = useTextDraft(`commit-amend:${worktree}`);
+    const amend = amendDraft === 'true';
+    const setAmend = (value: boolean) => setAmendDraft(value ? 'true' : '');
     const [busy, setBusy] = useState<string>();
     const [actionError, setActionError] = useState<string>();
     const [notice, setNotice] = useState<string>();
@@ -488,10 +493,10 @@ export function ChangesPanel({
                         <DraftButton
                             worktree={worktree}
                             kind="commit"
+                            draftKey={messageKey}
                             amend={amend}
                             current={message}
                             disabled={(staged.length === 0 && !amend) || !!busy}
-                            onDraft={setMessage}
                             onError={setActionError}
                         />
                         <Button

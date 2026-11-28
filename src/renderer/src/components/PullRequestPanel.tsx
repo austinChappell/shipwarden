@@ -22,7 +22,7 @@ import { seenStore } from '../seen-store';
 import { errorText, optionalErrorText, timeAgo } from '../util';
 import { changePullRequest, mergePullRequest, submitReview } from '../github/pull-request-mutations';
 import { confirmDialog } from './ConfirmDialog';
-import { DescriptionEditor, PullRequestMeta } from './PullRequestDetails';
+import { clearDescriptionDraft, DescriptionEditor, hasDescriptionDraft, PullRequestMeta } from './PullRequestDetails';
 import { PullRequestTitle } from './PullRequestTitle';
 import { PullRequestTimeline } from './PullRequestTimeline';
 import { openLink } from '../links';
@@ -141,11 +141,12 @@ export function PullRequestPanel({
     const [mergeMethod, setMergeMethod] = useState<MergeMethod>();
     const [showResolved, setShowResolved] = useState(false);
     const [commitsOpen, setCommitsOpen] = useState(false);
-    const [editing, setEditing] = useState(false);
+    // The editor opens again when it has unsaved changes or a running ✨ draft, for example after the user opened another page.
+    const [editing, setEditing] = useState(() => !!pr && hasDescriptionDraft(pr));
 
-    // A different pull request closes the editor.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect closes the editor when the pull request changes.
-    useEffect(() => setEditing(false), [pr?.number, pr?.url]);
+    // A different pull request closes the editor, unless that pull request has unsaved changes.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: The effect runs when the pull request changes.
+    useEffect(() => setEditing(!!pr && hasDescriptionDraft(pr)), [pr?.number, pr?.url]);
 
     const prNumber = pr?.number;
     // biome-ignore lint/correctness/useExhaustiveDependencies: A new head commit loads the file list again.
@@ -275,6 +276,7 @@ export function PullRequestPanel({
     const saveDescription = (title: string, text: string) =>
         run(async () => {
             await changePullRequest(target, pr, descriptionChange(pr, title, text));
+            clearDescriptionDraft(pr);
             setEditing(false);
         });
 
@@ -324,7 +326,10 @@ export function PullRequestPanel({
                 worktree={!overview && typeof target === 'string' ? target : undefined}
                 busy={busy}
                 onSave={saveDescription}
-                onCancel={() => setEditing(false)}
+                onCancel={() => {
+                    clearDescriptionDraft(pr);
+                    setEditing(false);
+                }}
             />
         </section>
     ) : (
